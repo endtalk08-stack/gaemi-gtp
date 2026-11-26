@@ -121,6 +121,7 @@
     const industrySlot = sidebar.querySelector('#marketIndustryWidgetSlot');
     const rankingSection = list?.parentElement;
     const title = sidebar.querySelector('#rightListTitle');
+    const asOfBadge = sidebar.querySelector('#rightListAsOf');
     const changeSortButton = sidebar.querySelector('#rightListMetric');
     const backendUrl = window.location.hostname.endsWith('github.io')
       || window.location.hostname === 'gaemigtp-main.pages.dev'
@@ -143,7 +144,30 @@
     let draggedRow = null;
     let lastRankingSignature = '';
     let cachedRankingRows = [];
+    let cachedRankingAsOf = '';
     let marketQqqQuote = null;
+    // 'YYYY-MM-DD' -> '11월 25일 종가 기준'. Never throws on an odd/missing date.
+    const asOfLabel = (dateStr) => {
+      if (typeof dateStr !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '';
+      const [, month, day] = dateStr.split('-');
+      return `${Number(month)}월 ${Number(day)}일 종가 기준`;
+    };
+    // Most-common reference_close_date among a batch of quote/row objects --
+    // a handful of symbols can lag one session behind the rest.
+    const mostCommonCloseDate = (rows) => {
+      const counts = new Map();
+      for (const row of rows || []) {
+        const date = row?.reference_close_date;
+        if (typeof date !== 'string' || !date) continue;
+        counts.set(date, (counts.get(date) || 0) + 1);
+      }
+      let best = '';
+      let bestCount = 0;
+      for (const [date, count] of counts) {
+        if (count > bestCount) { best = date; bestCount = count; }
+      }
+      return best;
+    };
     const industryBySymbol = new Map();
     const rankingIndustryBySymbol = new Map();
     let industryPromise = null;
@@ -299,6 +323,11 @@
     };
     const renderIndustryMapFor = (data, list) => {
       const items = Array.isArray(data?.items) ? data.items : [];
+      // A real DOM child here would shift every :nth-child row-sizing rule
+      // below, so the label is a CSS-rendered attribute, not an extra row.
+      const mapAsOf = asOfLabel(mostCommonCloseDate(data?.etf_quotes));
+      if (mapAsOf) list.dataset.asOf = mapAsOf;
+      else delete list.dataset.asOf;
       if (Array.isArray(data?.etf_quotes) && data.etf_quotes.length) {
         rememberIndustryEtfQuotes(data.etf_quotes, 'rest');
         industryRestQuotes = data.etf_quotes;
@@ -622,10 +651,11 @@
         value: '거래대금 TOP 20',
       };
       if (!Object.prototype.hasOwnProperty.call(titles, tab)) return;
-      if (title?.parentElement) {
+      const headerRow = sidebar.querySelector('#rightListHeaderRow');
+      if (headerRow) {
         const showListHeading = tab === 'value';
-        title.parentElement.hidden = !showListHeading;
-        title.parentElement.style.display = showListHeading ? '' : 'none';
+        headerRow.hidden = !showListHeading;
+        headerRow.style.display = showListHeading ? '' : 'none';
       }
       if (title) title.textContent = titles[tab];
       if (changeSortButton) changeSortButton.hidden = tab !== 'value';
@@ -637,6 +667,10 @@
         // Restore last verified TOP20 immediately without an extra Neon read.
         list.replaceChildren(...cachedRankingRows);
         applyChangeSort();
+        if (asOfBadge) {
+          asOfBadge.textContent = cachedRankingAsOf;
+          asOfBadge.hidden = !cachedRankingAsOf;
+        }
       }
       syncIndustryTabLayout();
       if (tab === 'realtime') {
@@ -678,6 +712,11 @@
           return;
         }
         lastRankingSignature = signature;
+        cachedRankingAsOf = asOfLabel(mostCommonCloseDate(result.items));
+        if (asOfBadge) {
+          asOfBadge.textContent = cachedRankingAsOf;
+          asOfBadge.hidden = !cachedRankingAsOf;
+        }
         list.replaceChildren();
         result.items.forEach((item, index) => {
           const button = document.createElement('button');

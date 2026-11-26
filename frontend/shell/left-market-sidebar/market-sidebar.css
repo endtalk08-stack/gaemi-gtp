@@ -293,6 +293,32 @@
 }
 
 
+/* Market-closed / reference-close badge, shown next to the TOP20 title and
+   as a non-grid pseudo-element above the industry heatmap (a real child
+   element would shift every :nth-child row-sizing rule below). */
+.market-sidebar-asof {
+  font-weight: 500;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dark .market-sidebar-asof {
+  color: #71717a;
+}
+#marketIndustryMap[data-as-of]::before {
+  content: attr(data-as-of);
+  display: block;
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  padding: 2px 2px 5px;
+}
+.dark #marketIndustryMap[data-as-of]::before {
+  color: #71717a;
+}
+
 /* Keep separate sector and stock cards within each industry row. */
 .industry-map-list {
   display: grid;

@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="css/sketch-pad.css?v=20261005-v1">
   <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261012-sidebar-recent-v1">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20261005-header-system-v1">
-  <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261125-industry-widget-transparent-v1">
+  <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261126-asof-badge-v1">
 
   <link rel="stylesheet" href="shell/left-plugin-sidebar/plugin-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/right-panel/right-panel.css?v=20261005-border-system-v1">
@@ -146,8 +146,11 @@
 
       <!-- 리스트 -->
       <div class="px-4">
-        <div class="flex items-center justify-between py-3 text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]">
-          <span id="rightListTitle">거래대금 TOP 20</span>
+        <div id="rightListHeaderRow" class="flex items-center justify-between py-3 text-[11px] font-bold text-[#64748b] dark:text-[#a1a1aa]">
+          <span class="flex items-center gap-1.5 min-w-0">
+            <span id="rightListTitle">거래대금 TOP 20</span>
+            <span id="rightListAsOf" class="market-sidebar-asof" hidden></span>
+          </span>
           <button type="button" id="rightListMetric" aria-pressed="false" title="등락률 높은 순으로 정렬 / 원래 순서로 복원" class="hover:text-sky-500 transition-colors cursor-pointer">상승률</button>
         </div>
         <div id="marketRankingList" aria-live="polite"></div>
@@ -413,7 +416,7 @@
   <script src="shell/left-panel/left-panel-resizer.js?v=20260927-left-fixed"></script>
   <script src="shell/left-context-sidebar/context-sidebar.js?v=20260927-sidebar-home"></script>
   <script src="shell/left-market-sidebar/stock-marks.js?v=20261022-visible-logos-v2"></script>
-  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261125-market-title-clean-v1"></script>
+  <script src="shell/left-market-sidebar/market-sidebar.js?v=20261126-asof-badge-v1"></script>
 
   <script src="pages/watchlist/watchlist.js?v=20261005-type-v1"></script>
   <script src="shell/right-panel/right-panel-tabs.js?v=20261114-detach-right-news-v1"></script>
