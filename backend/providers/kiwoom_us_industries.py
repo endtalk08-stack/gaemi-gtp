@@ -735,3 +735,25 @@ def fetch_us_anthropic_stock(*, token=None):
             "issuer_key": "US:ANTHROPIC", "market_cap_usd": cap * 1000,
             "change_pct": _number(record.get("flu_rt")),
             "price": _positive_price(record.get("cur_prc"))}
+
+
+def fetch_us_spacex_stock(*, token=None):
+    """Verify SPCX against Kiwoom before adding it to the requested communication slot.
+
+    SpaceX's own official industry classification (per the separate R2
+    instruments snapshot) is "Wireless Telecommunication Services", which is
+    exactly the "communication" heatmap group's own alias -- this is not an
+    arbitrary insert, it is filling in a company Kiwoom's own per-GICS-code
+    industry endpoint simply doesn't carry yet.
+    """
+    record = _call("usa20100", {"stex_tp": "ND", "stk_cd": "SPCX"},
+                   token=token or _access_token())
+    cap = _number(record.get("mac"))
+    if (str(record.get("stk_cd") or "").strip().upper() != "SPCX"
+            or str(record.get("stex_tp") or "").strip().upper() != "ND"
+            or cap is None or cap <= 0):
+        return None
+    return {"symbol": "SPCX", "exchange": "ND", "name": "스페이스X",
+            "issuer_key": "US:SPACEX", "market_cap_usd": cap * 1000,
+            "change_pct": _number(record.get("flu_rt")),
+            "price": _positive_price(record.get("cur_prc"))}

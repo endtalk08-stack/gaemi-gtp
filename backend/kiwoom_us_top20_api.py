@@ -250,7 +250,7 @@ def _get_us_industry_map_with_stocks(view="legacy"):
         if not isinstance(item, dict):
             return None
         row = dict(item)
-        candidate_limit = 4 if view == "heatmap" and row.get("key") in ("biotech", "software") else limit
+        candidate_limit = 4 if view == "heatmap" and row.get("key") in ("biotech", "software", "communication") else limit
         row["stocks"] = [dict(stock) for stock in item.get("stocks", [])[:candidate_limit]]
         if not row["stocks"] and (row.get("codes") or row.get("code")):
             try:
@@ -279,6 +279,29 @@ def _get_us_industry_map_with_stocks(view="legacy"):
             if anthropic and not any(str(stock.get("symbol", "")).upper().split(".")[0] == "ANT"
                                      for stock in row["stocks"]):
                 row["stocks"].append(dict(anthropic))
+        if view == "heatmap" and row.get("key") == "communication":
+            # One cached official lookup for the requested SPCX slot; no fixed quote.
+            # The frontend's own market-cap sort then naturally ranks it ahead of
+            # whichever existing candidate is smallest -- no manual slot override.
+            key = ("spacex", "marketcap")
+            now = time.monotonic()
+            with _US_INDUSTRY_CACHE_LOCK:
+                cached = _US_INDUSTRY_STOCK_CACHE.get(key)
+            if cached and now < cached["expires_at"]:
+                spacex = cached["data"]
+            else:
+                from backend.providers.kiwoom_us_industries import fetch_us_spacex_stock
+                try:
+                    spacex = fetch_us_spacex_stock()
+                except Exception:
+                    spacex = cached["data"] if cached else None
+                with _US_INDUSTRY_CACHE_LOCK:
+                    _US_INDUSTRY_STOCK_CACHE[key] = {
+                        "expires_at": now + _US_INDUSTRY_STOCK_TTL, "data": spacex,
+                    }
+            if spacex and not any(str(stock.get("symbol", "")).upper().split(".")[0] == "SPCX"
+                                   for stock in row["stocks"]):
+                row["stocks"].append(dict(spacex))
         return row
 
     def get_bitcoin_stocks():
