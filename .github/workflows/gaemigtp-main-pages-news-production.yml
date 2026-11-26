@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy_production:
-        description: 'Deploy this main commit directly to production'
+        description: 'After checking the preview site and its Functions/R2 results, approve production deployment'
         required: true
         type: boolean
         default: false
@@ -93,8 +93,59 @@ jobs:
           grep -Fq 'data-panel-workspace-view="disclosures"' frontend/shell/right-panel/right-panel-tabs.js
           grep -q 'right-panel-tabs.js?v=20261114-detach-right-news-v1' frontend/index.html
 
-  production:
+  # A fixed Cloudflare Pages preview alias is used; no GitHub work branch is created or pushed.
+  preview:
     needs: validate
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !inputs.deploy_production)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Deploy main snapshot to the existing Pages preview branch
+        uses: cloudflare/wrangler-action@v3
+        env:
+          npm_config_yes: "true"
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          wranglerVersion: "4.167.0"
+          command: pages deploy frontend --project-name gaemigtp-main --branch gaemigtp-preview --commit-hash ${{ github.sha }}
+      - name: Verify every deployed preview asset byte-for-byte
+        run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-preview.gaemigtp-main.pages.dev"
+      - name: Verify preview Pages Functions and the existing R2 chart binding
+        run: |
+          site=https://gaemigtp-preview.gaemigtp-main.pages.dev
+          curl -fsS --retry 3 --max-time 20 "$site/market/qqq-reason" |
+            jq -e '.ok == true and (.items | type == "array")'
+          curl -fsS --retry 3 --max-time 20 "$site/stocks/us/instruments.json" |
+            jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
+          curl -fsS --retry 3 --max-time 20 "$site/market/us-daily-chart?symbol=NVDA" |
+            jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
+
+  # Production approval is a separate manual dispatch, after the preview has been reviewed.
+  verify_preview:
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Verify preview assets still match this exact main commit
+        run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-preview.gaemigtp-main.pages.dev"
+      - name: Recheck preview Pages Functions and the existing R2 chart binding before production
+        run: |
+          site=https://gaemigtp-preview.gaemigtp-main.pages.dev
+          curl -fsS --retry 3 --max-time 20 "$site/market/qqq-reason" |
+            jq -e '.ok == true and (.items | type == "array")'
+          curl -fsS --retry 3 --max-time 20 "$site/stocks/us/instruments.json" |
+            jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
+          curl -fsS --retry 3 --max-time 20 "$site/market/us-daily-chart?symbol=NVDA" |
+            jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
+
+  production:
+    needs: verify_preview
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_production
     runs-on: ubuntu-latest
     environment: production
@@ -105,7 +156,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-      - name: Deploy main commit directly to the existing Pages production project
+      - name: Deploy the approved main commit to the existing Pages production project
         id: deploy
         uses: cloudflare/wrangler-action@v3
         env:
@@ -117,7 +168,7 @@ jobs:
           command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash ${{ github.sha }}
       - name: Verify production frontend assets
         run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
-      - name: Verify production Pages Functions
+      - name: Verify production Pages Functions and the existing R2 chart binding
         run: |
           site=https://gaemigtp-main.pages.dev
           curl -fsS --retry 3 --max-time 20 "$site/market/qqq-reason" |
