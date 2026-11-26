@@ -1,33 +1,20 @@
-import json, pathlib, ssl, urllib.request
-p = pathlib.Path("/var/lib/gaemigtp-news/us-regular-last-verified.json")
-parent = p.parent
-lock = pathlib.Path("/var/lib/gaemigtp-news/us-regular-last-verified.lock")
-def describe(path):
-    try:
-        st = path.lstat()
-        return "exists=1 type=%s owner_uid=%s owner_gid=%s mode=%04o size=%s" % (
-            "symlink" if path.is_symlink() else "file" if path.is_file() else "other",
-            st.st_uid, st.st_gid, st.st_mode & 0o777, st.st_size)
-    except FileNotFoundError:
-        return "exists=0"
-print("PARENT " + describe(parent), flush=True)
-print("SNAPSHOT " + describe(p), flush=True)
-print("LOCK " + describe(lock), flush=True)
-if p.is_file() and not p.is_symlink():
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-        print("SNAPSHOT_CONTENT day=%s records=%s" % (data.get("day"), len(data.get("items") or {})), flush=True)
-    except Exception as exc:
-        print("SNAPSHOT_CONTENT_INVALID=" + type(exc).__name__, flush=True)
+import json, ssl, urllib.request
 ctx = ssl._create_unverified_context()
-for path in ("/health", "/market/us-industries?include_stocks=1&view=heatmap"):
-    with urllib.request.urlopen("https://127.0.0.1" + path, context=ctx, timeout=30) as response:
-        data = json.loads(response.read().decode("utf-8"))
-    if path == "/health":
-        print("HTTPS_HEALTH=" + str(data.get("ok")), flush=True)
-    else:
-        items = data.get("items") or []
-        stocks = [x for sector in items for x in (sector.get("stocks") or [])]
-        rates = [x for x in stocks if type(x.get("change_pct")) in (int, float)]
-        print("INDUSTRY ok=%s sectors=%s stocks=%s percentage_values=%s" %
-              (data.get("ok"), len(items), len(stocks), len(rates)), flush=True)
+def get(url, tls=False):
+    with urllib.request.urlopen(url, context=ctx if tls else None, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+health = get("http://127.0.0.1:8765/health")
+top = get("http://127.0.0.1:8765/market/trading-value?market=us")
+assert health.get("ok") is True, "plain_health_failed"
+rows = top.get("items") or []
+assert top.get("ok") is True and len(rows) == 20, "top20_endpoint_invalid"
+top_rates = [x for x in rows if type(x.get("change_pct")) in (int, float)]
+industry = get("https://127.0.0.1/market/us-industries?include_stocks=1&view=heatmap", tls=True)
+assert industry.get("ok") is True, "industry_endpoint_invalid"
+sectors = industry.get("items") or []
+stocks = [x for sector in sectors for x in (sector.get("stocks") or [])]
+industry_rates = [x for x in stocks if type(x.get("change_pct")) in (int, float)]
+print("PLAIN_HEALTH=PASS", flush=True)
+print("TOP20=PASS rows=%d numeric_percentages=%d" % (len(rows), len(top_rates)), flush=True)
+print("HTTPS_INDUSTRY=PASS sectors=%d stocks=%d numeric_percentages=%d" %
+      (len(sectors), len(stocks), len(industry_rates)), flush=True)
