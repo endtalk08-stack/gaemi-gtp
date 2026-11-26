@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/probe_us_industry_latency_20261126.py",
-  "request_id": "usindlatency2_20261126",
-  "timeout": 300
+  "path": "ops/do-gateway/probe_us_sector_etf_quotes_20261126.py",
+  "request_id": "usetfprobe4_20261126",
+  "timeout": 120
 }
