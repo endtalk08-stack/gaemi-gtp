@@ -163,6 +163,7 @@ jobs:
             node scripts/pages/verify-pages-deployment.mjs "$DEPLOYMENT_URL"
           fi
       - name: Verify preview Pages Functions and existing R2 binding
+        if: steps.preview_check.outputs.protected != 'true'
         env:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
         run: |
