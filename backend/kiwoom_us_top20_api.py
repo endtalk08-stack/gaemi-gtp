@@ -498,8 +498,23 @@ def _us_close_read_disk():
 
 def _us_close_merge(incoming):
     global _US_CLOSE_CACHE
-    if not incoming or incoming["day"] != _US_CLOSE_CACHE["day"]:
+    if not isinstance(incoming, dict) or not isinstance(incoming.get("items"), dict):
         return
+    incoming_day = incoming.get("day")
+    try:
+        incoming_date = datetime.strptime(incoming_day, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return
+    current_day = _US_CLOSE_CACHE.get("day") or ""
+    try:
+        current_date = datetime.strptime(current_day, "%Y-%m-%d").date() if current_day else None
+    except ValueError:
+        current_date = None
+    # Keep the newest saved trading session across restarts and calendar days.
+    if current_date is not None and incoming_date < current_date:
+        return
+    if current_date is None or incoming_date > current_date:
+        _US_CLOSE_CACHE = {"day": incoming_day, "items": {}}
     for symbol, item in incoming["items"].items():
         if not SYMBOL.fullmatch(str(symbol)) or not isinstance(item, dict):
             continue
@@ -582,46 +597,56 @@ def _us_close_remember(quote, now=None):
 
 
 def _us_close_get(symbol, now=None, exchange=None):
-    global _US_CLOSE_CACHE, _US_CLOSE_LAST_READ
+    global _US_CLOSE_LAST_READ
     now = now or datetime.now(timezone.utc)
     phase, day = _us_close_phase(now)
-    if phase != "hold" or not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol):
+    # During the regular session, only a fresh tick may update the displayed
+    # percentage. Outside it, keep the last verified regular-session record.
+    if phase == "capture" or not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol):
         return None
-    # The dated Kiwoom daily record takes precedence over the last regular
-    # tick. Its previous-close reference is independently checked by Yahoo.
-    if exchange in ("ND", "NY", "NA"):
+    # The dated Kiwoom daily record takes precedence during the close-hold
+    # window. Its previous-close reference is independently checked by Yahoo.
+    if phase == "hold" and exchange in ("ND", "NY", "NA"):
         from backend.us_quote_change import official_close_quote
         official = official_close_quote(symbol, exchange, now=now)
         if official is not None:
             return official
     with _US_CLOSE_LOCK:
-        if _US_CLOSE_CACHE["day"] != day:
-            _US_CLOSE_CACHE = {"day": day, "items": {}}
-            _US_CLOSE_LAST_READ = 0.0
         if time.monotonic() - _US_CLOSE_LAST_READ >= 3:
             _us_close_merge(_us_close_read_disk())
             _US_CLOSE_LAST_READ = time.monotonic()
+        record_day = _US_CLOSE_CACHE.get("day")
         row = _US_CLOSE_CACHE["items"].get(symbol)
         if not isinstance(row, dict):
             return None
         try:
+            record_date = datetime.strptime(record_day, "%Y-%m-%d").date()
+            today = datetime.strptime(day, "%Y-%m-%d").date()
             observed = datetime.fromtimestamp(row["observed_at_ms"] / 1000, _US_CLOSE_NY)
-            if (observed.date().isoformat() != day or
-                    not (9 * 60 + 30 <= observed.hour * 60 + observed.minute < 16 * 60)
-                    or not (0 < row["price"] < 10000000)
-                    or not (-100 < row["change_pct"] < 10000)
-                    or not (isinstance(row.get("reference_close_date"), str)
-                            and row["reference_close_date"] < day)):
+            price, change_pct = row["price"], row["change_pct"]
+            reference_date = row.get("reference_close_date")
+            age_days = (today - record_date).days
+            if (age_days < 0 or age_days > 10
+                    or observed.date() != record_date
+                    or not (9 * 60 + 30 <= observed.hour * 60 + observed.minute < 16 * 60)
+                    or type(price) not in (int, float) or not math.isfinite(price)
+                    or not 0 < price < 10000000
+                    or type(change_pct) not in (int, float) or not math.isfinite(change_pct)
+                    or not -100 < change_pct < 10000
+                    or not isinstance(reference_date, str)):
+                return None
+            datetime.strptime(reference_date, "%Y-%m-%d")
+            if reference_date >= record_day:
                 return None
         except (KeyError, TypeError, ValueError, OverflowError):
             return None
         return {
             "symbol": symbol, "exchange": row.get("exchange"),
-            "price": row["price"], "change_pct": row["change_pct"],
-            "reference_close_date": row["reference_close_date"],
-            "reference_close_session": row["reference_close_date"],
-            "received_at_ms": int(now.timestamp() * 1000),
-            "stale": False, "source": "kiwoom:regular-last-verified",
+            "price": float(price), "change_pct": float(change_pct),
+            "reference_close_date": reference_date,
+            "reference_close_session": reference_date,
+            "received_at_ms": int(row["observed_at_ms"]),
+            "stale": record_day != day, "source": "kiwoom:regular-last-verified",
             "market_session": "last_regular_tick",
         }
 
@@ -760,7 +785,7 @@ def _feed_snapshot(store):
                 quote["reference_close_date"] = close_date
         quote["stale"] = now_ms - quote["received_at_ms"] > _QQQ_STALE_MS
     # The file also supplies a last verified quote after a process restart.
-    if _us_close_phase()[0] == "hold":
+    if _us_close_phase()[0] != "capture":
         if store is _TOP20_QUOTES:
             wanted = _TOP20_SYMBOLS
         elif store is _INDUSTRY_QUOTES:

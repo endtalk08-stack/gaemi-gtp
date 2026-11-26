@@ -97,6 +97,61 @@ class VerifiedQuoteChangeTests(unittest.TestCase):
             self.assertIsNone(baseline._lookup("QQQ", "ND", friday.date(), True))
             fetch.assert_called_once()
 
+    def test_last_verified_quote_restores_after_restart_on_holiday_and_weekend(self):
+        observed = dt.datetime(2026, 11, 25, 15, 58, tzinfo=ZoneInfo("America/New_York"))
+        record = {
+            "day": "2026-11-25",
+            "items": {
+                "NVDA": {
+                    "symbol": "NVDA", "price": 190.0, "change_pct": 2.75,
+                    "reference_close_date": "2026-11-24",
+                    "received_at_ms": int(observed.timestamp() * 1000),
+                    "observed_at_ms": int(observed.timestamp() * 1000),
+                    "exchange": "ND",
+                }
+            },
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "last-verified.json"
+            path.write_text(json.dumps(record), encoding="utf-8")
+            old_file, old_cache = api._US_CLOSE_FILE, api._US_CLOSE_CACHE
+            old_read = api._US_CLOSE_LAST_READ
+            try:
+                api._US_CLOSE_FILE = path
+                api._US_CLOSE_CACHE = {"day": "", "items": {}}
+                api._US_CLOSE_LAST_READ = 0.0
+                for now in (
+                    dt.datetime(2026, 11, 26, 10, 0, tzinfo=ZoneInfo("America/New_York")),
+                    dt.datetime(2026, 11, 28, 12, 0, tzinfo=ZoneInfo("America/New_York")),
+                ):
+                    quote = api._us_close_get("NVDA", now=now, exchange="ND")
+                    self.assertEqual(quote["price"], 190.0)
+                    self.assertEqual(quote["change_pct"], 2.75)
+                    self.assertTrue(quote["stale"])
+                    self.assertEqual(quote["reference_close_date"], "2026-11-24")
+            finally:
+                api._US_CLOSE_FILE = old_file
+                api._US_CLOSE_CACHE = old_cache
+                api._US_CLOSE_LAST_READ = old_read
+
+    def test_last_verified_quote_is_not_used_during_regular_session(self):
+        now = dt.datetime(2026, 11, 25, 11, 0, tzinfo=ZoneInfo("America/New_York"))
+        old_cache, old_read = api._US_CLOSE_CACHE, api._US_CLOSE_LAST_READ
+        try:
+            api._US_CLOSE_CACHE = {"day": "", "items": {}}
+            api._US_CLOSE_LAST_READ = 0.0
+            with patch.object(api, "_us_close_read_disk", return_value={
+                "day": "2026-11-24", "items": {"NVDA": {
+                    "symbol": "NVDA", "price": 180.0, "change_pct": 1.0,
+                    "reference_close_date": "2026-11-21",
+                    "observed_at_ms": int(dt.datetime(2026, 11, 24, 15, 0,
+                        tzinfo=ZoneInfo("America/New_York")).timestamp() * 1000),
+                }}
+            }):
+                self.assertIsNone(api._us_close_get("NVDA", now=now, exchange="ND"))
+        finally:
+            api._US_CLOSE_CACHE, api._US_CLOSE_LAST_READ = old_cache, old_read
+
     def test_unverified_stream_and_ranking_do_not_show_percentage(self):
         api._set_top20_symbols({"NVDA"})
         api._publish_live_quote({"symbol": "NVDA", "price": 100, "change_pct": -9.55})
