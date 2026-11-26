@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/diagnose_us_industry_provider_20261126.py",
-  "request_id": "usindproviderdiag2_20261126",
-  "timeout": 180
+  "operation": "deploy",
+  "path": "ops/systemd/gaemigtp-kiwoom-us-top20-api.service",
+  "target": "ops/systemd/gaemigtp-kiwoom-us-top20-api.service"
 }
