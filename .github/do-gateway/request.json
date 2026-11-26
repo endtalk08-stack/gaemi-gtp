@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/read_only_capacity_check_20261126.py",
+  "request_id": "servercapacity20261126",
+  "timeout": 120
 }
