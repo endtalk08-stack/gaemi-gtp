@@ -348,8 +348,9 @@ def _get_us_industry_map_with_stocks(view="legacy"):
                      list(_INDUSTRY_QUOTES.values()) + list(_TOP20_QUOTES.values())
                      if quote.get("reference_close_session") == session_key
                      and type(quote.get("change_pct")) in (int, float)}
+    # Keep the official usa23000 industry return on each sector row.
+    # The verified quote fallback below applies to constituent stocks only.
     for row in result["items"]:
-        row["change_pct"] = None
         for stock in row.get("stocks", []):
             symbol = str(stock.get("symbol") or "").upper().split(".")[0]
             quote = _us_close_get(symbol, exchange=stock.get("exchange")) or confirmed.get(symbol)
