@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 def check(name, url, host=None):
     try:
-        headers = {"User-Agent": "gaemiGTP-readonly-diagnostic"}
+        headers = {"User-Agent": "gaemiGTP-readonly-diagnostic", "Origin": "https://gaemigtp-main.pages.dev"}
         if host:
             headers["Host"] = host
         req = urllib.request.Request(url, headers=headers)
@@ -21,7 +21,7 @@ def check(name, url, host=None):
                         "price_valid": type(item.get("price")) in (int, float) and item.get("price", 0) > 0,
                         "change_valid": type(item.get("change_pct")) in (int, float),
                         "stale": item.get("stale"),
-                        "source": item.get("source"),
+                        "source": item.get("source"),\n                        "age_seconds": round((__import__("time").time() * 1000 - item.get("received_at_ms", 0)) / 1000, 1) if isinstance(item.get("received_at_ms"), (int, float)) else None,
                     })
             print(json.dumps({
                 "check": name, "http": response.status, "ok": payload.get("ok"),
