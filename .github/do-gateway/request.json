@@ -1,3 +1,5 @@
 {
-  "operation": "status"
+  "operation": "logs",
+  "unit": "gaemigtp-tradingview-news.service",
+  "lines": 120
 }
