@@ -160,8 +160,8 @@ def publish_naver_news(rows: list) -> dict:
     return snapshot
 
 
-def collect_and_publish_naver_news(queries: list[str], *, limit: int = 200,
-                                   per_query: int = 20) -> dict:
+def collect_and_publish_naver_news(queries: list[str], *, section: str = "market",
+                                   limit: int = 200, per_query: int = 20) -> dict:
     """Collect Naver-only market news for caller-supplied queries and publish it."""
     from backend.services.news_feed import fetch_naver_news
 
@@ -169,6 +169,7 @@ def collect_and_publish_naver_news(queries: list[str], *, limit: int = 200,
         queries,
         limit=limit,
         per_query=per_query,
+        section=section,
         raise_on_error=True,
     )
     return publish_naver_news(rows)
