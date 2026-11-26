@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/verify_live_us_industry_pct_20261126.py",
-  "request_id": "usindpctpostdeploy20261126",
-  "timeout": 120
+  "operation": "logs",
+  "unit": "gaemigtp-kiwoom-us-top20-api.service",
+  "lines": 160
 }
