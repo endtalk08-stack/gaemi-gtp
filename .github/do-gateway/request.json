@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/diagnose_us_industry_provider_20261126.py",
-  "request_id": "usindproviderdiag20261126",
+  "path": "ops/do-gateway/diagnose_us_industry_provider_https_20261126.py",
+  "request_id": "usindhttpsdiag20261126",
   "timeout": 180
 }
