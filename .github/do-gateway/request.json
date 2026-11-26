@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/probe_us_top20_pct_20261126.py",
-  "request_id": "ustop20pctprobe2_20261126",
+  "path": "ops/do-gateway/probe_us_sector_etf_quotes_20261126.py",
+  "request_id": "usetfprobe3_20261126",
   "timeout": 120
 }
