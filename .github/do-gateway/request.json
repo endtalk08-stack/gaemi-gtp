@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/verify-us-news-and-close-20261023.py",
+  "request_id": "nvda_naver_news_20261126",
+  "timeout": 60
 }
