@@ -6,6 +6,7 @@ on:
     paths:
       - 'backend/kiwoom_us_top20_api.py'
       - 'tests/test_us_quote_change.py'
+      - 'frontend/shell/left-market-sidebar/market-sidebar.js'
       - '.github/workflows/test-us-close-recovery-preview.yml'
 
 permissions:

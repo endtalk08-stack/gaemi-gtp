@@ -169,7 +169,7 @@
           change.className = 'text-[11px] font-bold text-right' +
             (pct > 0 ? ' text-rose-500' : pct < 0 ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
           change.textContent = typeof pct === 'number' && Number.isFinite(pct)
-            ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '';
+            ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '—';
           secondRow.append(turnover, change);
 
           // Reuse the industry name from the same ranking result only.
