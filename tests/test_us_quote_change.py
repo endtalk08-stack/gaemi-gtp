@@ -174,5 +174,23 @@ class VerifiedQuoteChangeTests(unittest.TestCase):
             self.assertTrue(all(row["change_pct"] is None for row in api.read_top20(file)["items"]))
 
 
+    def test_closed_session_snapshot_uses_prior_session_baseline(self):
+        now = dt.datetime(2026, 11, 26, 12, 0, tzinfo=ZoneInfo("America/New_York"))
+        expected_asof = dt.datetime(2026, 11, 25, 15, 59, 59,
+                                    tzinfo=ZoneInfo("America/New_York"))
+        with patch.object(baseline, "validated_change", return_value=(2.75, "2026-11-24")) as validate:
+            result = api._validated_snapshot_change("NVDA", "ND", 190.0, now=now)
+        self.assertEqual(result, (2.75, "2026-11-24"))
+        self.assertEqual(validate.call_args.kwargs["now"], expected_asof)
+
+    def test_closed_session_snapshot_rejects_old_ranking_capture(self):
+        now = dt.datetime(2026, 11, 26, 12, 0, tzinfo=ZoneInfo("America/New_York"))
+        captured = dt.datetime(2026, 11, 24, 21, 0, tzinfo=dt.timezone.utc)
+        with patch.object(baseline, "validated_change") as validate:
+            result = api._validated_snapshot_change(
+                "NVDA", "ND", 190.0, now=now, snapshot_at=captured)
+        self.assertEqual(result, (None, None))
+        validate.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()
