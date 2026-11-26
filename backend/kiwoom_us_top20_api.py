@@ -1081,12 +1081,13 @@ def read_top20(path=RANKING_FILE):
         raise ValueError("top20_file_too_large")
     data = json.loads(path.read_text(encoding="utf-8"))
     captured_at = None
-    try:
-        captured_at = datetime.fromisoformat(str(data.get("captured_at") or "").replace("Z", "+00:00"))
-        if captured_at.tzinfo is None:
-            captured_at = captured_at.replace(tzinfo=timezone.utc)
-    except (TypeError, ValueError):
-        pass
+    if isinstance(data, dict):
+        try:
+            captured_at = datetime.fromisoformat(str(data.get("captured_at") or "").replace("Z", "+00:00"))
+            if captured_at.tzinfo is None:
+                captured_at = captured_at.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            pass
     if not isinstance(data, dict) or any(data.get(k) != v for k, v in (
         ("schema_version", 1), ("source", "kiwoom"), ("market", "US"),
         ("rank_type", "trading_value"))):
