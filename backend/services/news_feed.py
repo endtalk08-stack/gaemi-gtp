@@ -16,9 +16,9 @@ from backend.providers import naver_news, official_company_news, sec_filings, tr
 _CACHE = {}
 _CACHE_TTL = 120
 _CACHE_LOCK = threading.Lock()
-# TradingView collection is intentionally paused until its source-specific
-# adapter and publication path are explicitly re-enabled.
-TRADINGVIEW_NEWS_ENABLED = os.getenv("GAEMIGTP_TRADINGVIEW_NEWS_ENABLED", "0").strip() == "1"
+# TradingView collection is intentionally disabled. Re-enable only in a
+# separate change after its source-specific R2 publication path is validated.
+TRADINGVIEW_NEWS_ENABLED = False
 MAX_NEWS_AGE_DAYS = 7
 
 THEME_RULES = {
