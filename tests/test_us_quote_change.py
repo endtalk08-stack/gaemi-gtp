@@ -192,5 +192,29 @@ class VerifiedQuoteChangeTests(unittest.TestCase):
         self.assertEqual(result, (None, None))
         validate.assert_not_called()
 
+    def test_top20_uses_kiwoom_source_percent_when_close_lookup_is_unavailable(self):
+        rows = [
+            {"rank": n, "symbol": f"T{n}", "name": f"Test {n}", "exchange": "ND",
+             "price": 100.0 + n, "change_pct": round(n * 0.25, 2)}
+            for n in range(1, 21)
+        ]
+        payload = {"schema_version": 1, "source": "kiwoom", "market": "US",
+                   "rank_type": "trading_value", "captured_at": "2026-11-25T22:00:00Z",
+                   "items": rows}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "ranking.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with patch.object(api, "_us_close_get", return_value=None), \
+                 patch.object(api, "_TOP20_QUOTES", {}), \
+                 patch.object(api, "_us_close_phase", return_value=("none", "2026-11-26")), \
+                 patch.object(api, "_last_completed_us_session", return_value=dt.date(2026, 11, 25)), \
+                 patch.object(api, "_validated_snapshot_change", return_value=(None, None)):
+                result = api.read_top20(path)
+        self.assertEqual(len(result["items"]), 20)
+        self.assertEqual([item["change_pct"] for item in result["items"]],
+                         [row["change_pct"] for row in rows])
+        self.assertTrue(all(item["reference_close_date"] == "2026-11-24"
+                            for item in result["items"]))
+
 if __name__ == "__main__":
     unittest.main()
