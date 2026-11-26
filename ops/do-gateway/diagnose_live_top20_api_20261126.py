@@ -65,3 +65,16 @@ for path in (Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json"),
                   " pct=" + str(len(good)) + " symbols=" + ",".join(sorted(rows)), flush=True)
     except Exception as exc:
         print("FILE " + str(path) + " ERROR=" + type(exc).__name__ + ":" + str(exc), flush=True)
+
+import subprocess
+for unit in ("gaemigtp-kiwoom-us-top20-api.service", "gaemigtp-kiwoom-us-top20-https.service"):
+    try:
+        state = subprocess.check_output(["systemctl", "is-active", unit], text=True).strip()
+    except Exception:
+        state = "unknown"
+    print("SERVICE " + unit + "=" + state, flush=True)
+backup_dir = Path("/var/backups/gaemi-gateway")
+backups = sorted(backup_dir.glob("kiwoom_us_top20_api.py.*.before")) if backup_dir.is_dir() else []
+print("ROLLBACK_BACKUPS=" + str(len(backups)), flush=True)
+for item in backups[-3:]:
+    print("ROLLBACK_FILE=" + item.name, flush=True)
