@@ -96,8 +96,8 @@ def read_recovered_news_snapshot(*, object_key: str = "news/recovered/20261109.j
 
 
 def read_r2_json(object_key: str, *, max_bytes: int = 1_500_000):
-    """Read only the existing allow-listed US chart/instrument JSON from R2."""
-    if (object_key != "stocks/us/instruments.json"
+    """Read only allow-listed chart, instrument, and unified news JSON from R2."""
+    if (object_key not in ("stocks/us/instruments.json", "news/latest.json")
             and not re.fullmatch(r"charts/us/[A-Z][A-Z0-9.-]{0,14}/daily\\.json", object_key)):
         raise ValueError("invalid_r2_read_key")
     access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
@@ -139,6 +139,17 @@ def read_r2_json(object_key: str, *, max_bytes: int = 1_500_000):
     data = response.json()
     if not isinstance(data, dict):
         raise ValueError("invalid_r2_json_object")
+    return data
+
+
+def read_latest_news_snapshot():
+    """Read and validate the current unified news snapshot before merging."""
+    data = read_r2_json("news/latest.json")
+    if data is None:
+        return None
+    if (data.get("ok") is not True or not isinstance(data.get("items"), list)
+            or any(not isinstance(item, dict) for item in data["items"])):
+        raise ValueError("invalid_existing_latest_news_snapshot")
     return data
 
 
