@@ -147,27 +147,6 @@ jobs:
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
           curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
-      - name: TEMP DEBUG -- check if live quotes are actually frozen right now
-        run: |
-          echo "current UTC time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "--- call 1 ---"
-          curl -fsS --retry 3 --max-time 20 "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap" \
-            -o /tmp/c1.json
-          jq -r '.fetched_at, (.items[] | select(.key=="communication") | .change_pct, .stocks[0].change_pct)' /tmp/c1.json
-          echo "--- trading-value call 1 (SPCX row) ---"
-          curl -fsS --retry 3 --max-time 20 "https://quotes.gaemigtp.com/market/trading-value?market=us" -o /tmp/tv1.json
-          jq -r '.items[]? | select(.symbol=="SPCX") | .price, .change_pct, .reference_close_date' /tmp/tv1.json
-          sleep 20
-          echo "--- call 2 (20s later) ---"
-          curl -fsS --retry 3 --max-time 20 "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap" \
-            -o /tmp/c2.json
-          jq -r '.fetched_at, (.items[] | select(.key=="communication") | .change_pct, .stocks[0].change_pct)' /tmp/c2.json
-          echo "--- trading-value call 2 (SPCX row) ---"
-          curl -fsS --retry 3 --max-time 20 "https://quotes.gaemigtp.com/market/trading-value?market=us" -o /tmp/tv2.json
-          jq -r '.items[]? | select(.symbol=="SPCX") | .price, .change_pct, .reference_close_date' /tmp/tv2.json
-          echo "--- identical? ---"
-          diff /tmp/c1.json /tmp/c2.json > /dev/null && echo "us-industries: BYTE-IDENTICAL (frozen or no update in window)" || echo "us-industries: differs"
-          diff /tmp/tv1.json /tmp/tv2.json > /dev/null && echo "trading-value: BYTE-IDENTICAL" || echo "trading-value: differs"
       - name: Publish preview URL and verification scope
         if: always()
         env:
