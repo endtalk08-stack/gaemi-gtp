@@ -455,6 +455,7 @@ _QQQ_REST_RETRY_TTL = 15
 _WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
+# Closed-session quote fallback preserves the latest completed-session baseline.
 # Last *verified regular-session trade*, not the official closing-auction price.
 # This record is shared by the two read-only US quote API processes and survives
 # a service restart. Only public prices/rates are stored, never credentials.
