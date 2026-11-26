@@ -1,0 +1,39 @@
+name: Test US industry change preservation
+
+on:
+  push:
+    branches:
+      - ops/us-industry-marketcap-news-selection
+    paths:
+      - "backend/kiwoom_us_top20_api.py"
+      - "backend/providers/kiwoom_us_industries.py"
+      - "tests/test_us_industry_change_preservation.py"
+      - ".github/workflows/test-us-industry-change.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: ops/us-industry-marketcap-news-selection
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run US industry regression test
+        run: python -m unittest discover -s tests -p "test_us_industry_change_preservation.py" -v
