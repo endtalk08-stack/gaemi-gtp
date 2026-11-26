@@ -200,6 +200,15 @@
   let marketEtfSnapshotRetryAt = 0;
   let marketEtfSnapshotInFlight = false;
   let marketEtfSnapshotFailures = 0;
+  let marketEtfRetryTimer = null;
+
+  function scheduleMarketEtfRetry(delay) {
+    if (marketEtfRetryTimer !== null) window.clearTimeout(marketEtfRetryTimer);
+    marketEtfRetryTimer = window.setTimeout(() => {
+      marketEtfRetryTimer = null;
+      void refreshMarketEtfSnapshot();
+    }, delay);
+  }
 
   async function refreshMarketEtfSnapshot() {
     if (document.hidden
@@ -239,12 +248,15 @@
       }
       marketEtfSnapshotFailures = received === Object.keys(marketEtfs).length
         ? 0 : marketEtfSnapshotFailures + 1;
-      marketEtfSnapshotRetryAt = Date.now() + (received === Object.keys(marketEtfs).length
-        ? 120000 : Math.min(30000, 5000 * (2 ** Math.min(3, marketEtfSnapshotFailures - 1))));
+      const retryDelay = received === Object.keys(marketEtfs).length
+        ? 120000 : Math.min(30000, 5000 * (2 ** Math.min(3, marketEtfSnapshotFailures - 1)));
+      marketEtfSnapshotRetryAt = Date.now() + retryDelay;
+      if (received !== Object.keys(marketEtfs).length) scheduleMarketEtfRetry(retryDelay);
     } catch (_) {
       marketEtfSnapshotFailures += 1;
-      marketEtfSnapshotRetryAt = Date.now()
-        + Math.min(30000, 5000 * (2 ** Math.min(3, marketEtfSnapshotFailures - 1)));
+      const retryDelay = Math.min(30000, 5000 * (2 ** Math.min(3, marketEtfSnapshotFailures - 1)));
+      marketEtfSnapshotRetryAt = Date.now() + retryDelay;
+      scheduleMarketEtfRetry(retryDelay);
     } finally {
       marketEtfSnapshotInFlight = false;
     }
