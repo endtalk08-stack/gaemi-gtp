@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/verify-us-news-and-close-20261023.py",
-  "request_id": "nvda_naver_news_20261126",
-  "timeout": 60
+  "path": "ops/do-gateway/probe_nvda_stock_news_readonly_20261126.py",
+  "request_id": "nvda_full_news_20261126",
+  "timeout": 90
 }
