@@ -43,6 +43,12 @@ jobs:
           grep -Fq 'grid-template-columns: repeat(3, minmax(0, 1fr))' frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq "['AMD', '앤스로픽', '브로드컴']" tests/test_sidebar_issue_sync.cjs
           grep -Fq '모더나' tests/test_sidebar_issue_sync.cjs
+      - name: Stage Pages Functions beside the static frontend
+        run: |
+          test -d functions
+          mkdir -p frontend/functions
+          cp -R functions/. frontend/functions/
+          test -s frontend/functions/market/us-daily-chart.js
       - name: Deploy to existing Pages project preview
         id: deploy
         uses: cloudflare/wrangler-action@v3
