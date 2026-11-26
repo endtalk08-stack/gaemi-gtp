@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service",
-  "lines": 120
+  "operation": "run",
+  "path": "ops/do-gateway/diagnose_us_industry_provider_20261126.py",
+  "request_id": "usindenvdiag8_20261126",
+  "timeout": 180
 }
