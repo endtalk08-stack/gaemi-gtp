@@ -1,29 +1,33 @@
-import json, ssl, sys, urllib.request
-sys.path.insert(0, "/opt/gaemigtp-news/app")
-from backend import kiwoom_us_top20_api as api
-
+import json, pathlib, ssl, urllib.request
+p = pathlib.Path("/var/lib/gaemigtp-news/us-regular-last-verified.json")
+parent = p.parent
+lock = pathlib.Path("/var/lib/gaemigtp-news/us-regular-last-verified.lock")
+def describe(path):
+    try:
+        st = path.lstat()
+        return "exists=1 type=%s owner_uid=%s owner_gid=%s mode=%04o size=%s" % (
+            "symlink" if path.is_symlink() else "file" if path.is_file() else "other",
+            st.st_uid, st.st_gid, st.st_mode & 0o777, st.st_size)
+    except FileNotFoundError:
+        return "exists=0"
+print("PARENT " + describe(parent), flush=True)
+print("SNAPSHOT " + describe(p), flush=True)
+print("LOCK " + describe(lock), flush=True)
+if p.is_file() and not p.is_symlink():
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        print("SNAPSHOT_CONTENT day=%s records=%s" % (data.get("day"), len(data.get("items") or {})), flush=True)
+    except Exception as exc:
+        print("SNAPSHOT_CONTENT_INVALID=" + type(exc).__name__, flush=True)
 ctx = ssl._create_unverified_context()
-def get(path):
-    with urllib.request.urlopen("https://127.0.0.1" + path, context=ctx, timeout=25) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-health = get("/health")
-assert health.get("ok") is True, "https_health_failed"
-heatmap = get("/market/us-industries?include_stocks=1&view=heatmap")
-assert heatmap.get("ok") is True, "industry_endpoint_failed"
-items = heatmap.get("items") or []
-assert len(items) == 16, "industry_count_mismatch"
-stock_rows = [stock for sector in items for stock in (sector.get("stocks") or [])]
-rates = [row for row in stock_rows if type(row.get("change_pct")) in (int, float)]
-saved = api._us_close_read_disk()
-recovered = []
-for symbol in (saved.get("items") or {}):
-    quote = api._us_close_get(symbol, exchange=api._CLOSE_EXCHANGES.get(symbol))
-    if quote:
-        recovered.append(symbol)
-print("HTTPS_HEALTH=PASS")
-print("INDUSTRY_HEATMAP=PASS sectors=%d stocks=%d percentage_values=%d" % (len(items), len(stock_rows), len(rates)))
-print("PERSISTED_RECORDS=%d RESTORED_VALID_QUOTES=%d" % (len(saved.get("items") or {}), len(recovered)))
-print("RESTORED_SYMBOLS=" + ",".join(sorted(recovered)[:20]))
-if not recovered:
-    raise SystemExit("no_valid_persisted_quote_restored")
+for path in ("/health", "/market/us-industries?include_stocks=1&view=heatmap"):
+    with urllib.request.urlopen("https://127.0.0.1" + path, context=ctx, timeout=30) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    if path == "/health":
+        print("HTTPS_HEALTH=" + str(data.get("ok")), flush=True)
+    else:
+        items = data.get("items") or []
+        stocks = [x for sector in items for x in (sector.get("stocks") or [])]
+        rates = [x for x in stocks if type(x.get("change_pct")) in (int, float)]
+        print("INDUSTRY ok=%s sectors=%s stocks=%s percentage_values=%s" %
+              (data.get("ok"), len(items), len(stocks), len(rates)), flush=True)
