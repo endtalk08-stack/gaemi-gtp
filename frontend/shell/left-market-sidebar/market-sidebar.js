@@ -773,7 +773,7 @@
           change.className = 'market-stock-change' +
             (pct > 0 ? ' text-rose-500' : pct < 0 ? ' text-sky-500' : ' text-[#64748b] dark:text-[#a1a1aa]');
           change.textContent = typeof pct === 'number' && Number.isFinite(pct)
-            ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '';
+            ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '—';
           secondRow.append(industry, change);
 
           // Dedicate the full third row to a single-line AI issue headline.
