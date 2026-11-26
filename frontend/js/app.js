@@ -1,8 +1,5 @@
-// Frontend is served by GitHub Pages; analysis API runs on Render.
-const BACKEND_URL = window.location.hostname.endsWith('github.io')
-  || window.location.hostname === 'gaemigtp-main.pages.dev'
-  ? 'https://gaemi-gtp.onrender.com'
-  : window.location.origin;
+// Use the current site origin; do not route requests to Render.
+const BACKEND_URL = window.location.origin;
     let activeAnalysisController = null;
     let activeStock = '삼성전자';
     let activeAnalysisRequestId = 0;
