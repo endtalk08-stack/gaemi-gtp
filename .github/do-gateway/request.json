@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/probe_us_industry_latency_20261126.py",
-  "request_id": "usindlatency1_20261126",
-  "timeout": 300
+  "operation": "deploy",
+  "path": "backend/kiwoom_us_top20_api.py",
+  "target": "backend/kiwoom_us_top20_api.py"
 }

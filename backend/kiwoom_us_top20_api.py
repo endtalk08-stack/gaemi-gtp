@@ -163,7 +163,7 @@ def _get_us_industry_stocks(industry_key_or_code, sort="marketcap", *, sector_ma
         return dict(result)
 
 
-def _get_us_industry_etf_quotes():
+def _get_us_industry_etf_quotes(background=False):
     """Use verified live ticks, then compute missing ETF rates from Kiwoom REST prices."""
     from backend.providers.kiwoom_us_industries import ETF_TICKERS, fetch_us_etf_quotes
     from backend.us_quote_change import validated_change
@@ -175,13 +175,22 @@ def _get_us_industry_etf_quotes():
     live = current_ticks()
     fallback = {}
     if ETF_TICKERS.difference(live):
-        with _US_INDUSTRY_ETF_CACHE_LOCK:
+        # Viewer requests never wait behind a slow Kiwoom refresh: while the
+        # background warmer (or another request) holds the lock, serve the
+        # last fetched quotes. Only the warmer blocks for a fresh fetch.
+        fetching = _US_INDUSTRY_ETF_CACHE_LOCK.acquire(blocking=background)
+        try:
             live = current_ticks()
             now = time.monotonic()
             missing = ETF_TICKERS.difference(live)
-            due = {symbol for symbol in missing
-                   if now >= _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))[0]}
-            if due:
+            due = set(missing) if background else {
+                symbol for symbol in missing
+                if now >= _US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))[0]}
+            if not background and any(_US_INDUSTRY_ETF_CACHE.get(symbol, (0.0, None))[1]
+                                      for symbol in missing):
+                # A cached quote exists: let the warmer refresh it.
+                due = set()
+            if due and fetching:
                 try:
                     fetched = {
                         item["symbol"]: item
@@ -201,8 +210,11 @@ def _get_us_industry_etf_quotes():
                     _US_INDUSTRY_ETF_CACHE[symbol] = (refresh_at, fetched.get(symbol, previous))
             now_ms = int(time.time() * 1000)
             # Never display yesterday's REST price as a live ETF move.
-            fallback = {symbol: quote for symbol, (_, quote) in _US_INDUSTRY_ETF_CACHE.items()
+            fallback = {symbol: quote for symbol, (_, quote) in list(_US_INDUSTRY_ETF_CACHE.items())
                         if quote and 0 <= now_ms - quote["received_at_ms"] <= 120000}
+        finally:
+            if fetching:
+                _US_INDUSTRY_ETF_CACHE_LOCK.release()
         live = current_ticks()
 
     # Start every needed last-session read at once; then share one wait budget.
@@ -1155,6 +1167,23 @@ def _websocket_text_frame(payload, opcode=0x1):
     return header + payload
 
 
+_US_INDUSTRY_WARM_SECONDS = 40
+
+
+def _start_industry_warmer():
+    """Keep the heatmap and its ETF rates fresh so no viewer waits on Kiwoom."""
+    def runner():
+        while True:
+            try:
+                _get_us_industry_etf_quotes(background=True)
+                _get_us_industry_map_with_stocks("heatmap")
+            except Exception:
+                pass
+            time.sleep(_US_INDUSTRY_WARM_SECONDS)
+
+    threading.Thread(target=runner, name="us-industry-warmer", daemon=True).start()
+
+
 def _start_qqq_feed():
     import asyncio
     from backend.kiwoom_us_live_prices import run_qqq_fe_stream
@@ -1462,6 +1491,7 @@ def main():
         server.qqq_feed_enabled = tls
         if tls:
             _start_qqq_feed()
+            _start_industry_warmer()
         server.serve_forever()
 
 
