@@ -197,27 +197,57 @@
     drawQqqChart(card, state.points);
   }
 
+  let marketEtfSnapshotRetryAt = 0;
+  let marketEtfSnapshotInFlight = false;
+  let marketEtfSnapshotFailures = 0;
+
   async function refreshMarketEtfSnapshot() {
-    if (document.hidden || !Object.keys(marketEtfs).some(symbol => activeIds.includes(symbol.toLowerCase()))
-        || Date.now() - marketEtfSnapshotAt < 120000) return;
-    marketEtfSnapshotAt = Date.now();
+    if (document.hidden
+        || !Object.keys(marketEtfs).some(symbol => activeIds.includes(symbol.toLowerCase()))
+        || marketEtfSnapshotInFlight || Date.now() < marketEtfSnapshotRetryAt) return;
+    marketEtfSnapshotInFlight = true;
     try {
       const response = await fetch('https://quotes.gaemigtp.com/market/us-etf-quotes', {
-        signal: AbortSignal.timeout(20000)
+        cache: 'no-store',
+        signal: AbortSignal.timeout(12000)
       });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error('market_etf_http_' + response.status);
       const data = await response.json();
-      if (!data?.ok || !Array.isArray(data.items)) return;
-      for (const [symbol, state] of Object.entries(marketEtfs)) {
-        const quote = data.items.find(item => item.symbol === symbol);
-        if (quote && Number.isFinite(quote.price) && quote.price > 0
-            && Number.isFinite(quote.change_pct) && Number.isFinite(quote.received_at_ms)
-            && (!state.current || !isQqqQuoteFresh(state.current))) {
-          state.current = { ...quote, stale: false, source: 'kiwoom:rest' };
-          updateMarketEtfCard(symbol);
-        }
+      if (data?.ok !== true || !Array.isArray(data.items)) {
+        throw new Error('market_etf_invalid_response');
       }
-    } catch (_) {}
+      let received = 0;
+      for (const [symbol, state] of Object.entries(marketEtfs)) {
+        const quote = data.items.find(item => item?.symbol === symbol);
+        if (!quote || !Number.isFinite(quote.price) || quote.price <= 0
+            || !Number.isFinite(quote.change_pct) || !Number.isFinite(quote.received_at_ms)
+            || quote.received_at_ms > Date.now() + 5000
+            || Date.now() - quote.received_at_ms > 1800000) {
+          updateMarketEtfCard(symbol);
+          continue;
+        }
+        received += 1;
+        const currentFresh = state.current && isQqqQuoteFresh(state.current);
+        if (!currentFresh) {
+          state.current = { ...quote, stale: false, source: 'kiwoom:rest' };
+        } else if (!Number.isFinite(state.current.change_pct)) {
+          // Enrich a valid live tick when Kiwoom has not supplied its percentage yet.
+          state.current = { ...state.current, change_pct: quote.change_pct,
+            reference_close_date: quote.reference_close_date };
+        }
+        updateMarketEtfCard(symbol);
+      }
+      marketEtfSnapshotFailures = received === Object.keys(marketEtfs).length
+        ? 0 : marketEtfSnapshotFailures + 1;
+      marketEtfSnapshotRetryAt = Date.now() + (received === Object.keys(marketEtfs).length
+        ? 120000 : Math.min(30000, 5000 * (2 ** Math.min(3, marketEtfSnapshotFailures - 1))));
+    } catch (_) {
+      marketEtfSnapshotFailures += 1;
+      marketEtfSnapshotRetryAt = Date.now()
+        + Math.min(30000, 5000 * (2 ** Math.min(3, marketEtfSnapshotFailures - 1)));
+    } finally {
+      marketEtfSnapshotInFlight = false;
+    }
   }
 
   function onMarketEtfQuotes(event) {
