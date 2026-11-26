@@ -8,6 +8,8 @@ on:
       - "backend/kiwoom_us_top20_api.py"
       - "backend/providers/kiwoom_us_industries.py"
       - "tests/test_us_industry_change_preservation.py"
+      - "tests/test_kiwoom_us_industries.py"
+      - "tests/test_us_quote_change.py"
       - ".github/workflows/test-us-industry-change.yml"
   workflow_dispatch:
 
@@ -35,5 +37,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run US industry regression test
-        run: python -m unittest discover -s tests -p "test_us_industry_change_preservation.py" -v
+      - name: Run US industry and quote regression tests
+        run: |
+          python -m unittest discover -s tests -p "test_kiwoom_us_industries.py" -v
+          python -m unittest discover -s tests -p "test_us_quote_change.py" -v
+          python -m unittest discover -s tests -p "test_us_industry_change_preservation.py" -v
