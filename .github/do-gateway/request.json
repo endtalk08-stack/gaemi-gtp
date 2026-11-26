@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/probe_us_sector_etf_quotes_20261126.py",
-  "request_id": "usetfprobe2_20261126",
-  "timeout": 120
+  "operation": "status"
 }
