@@ -1,35 +1,12 @@
 /**
- * Existing gaemigtp-news Pages delivery, extended with US TOP20 only.
- * R2 news behavior is kept equivalent to functions/news/latest.json.js.
- * Uses the existing NEWS_R2 binding; no Neon, Render or new credentials.
+ * US TOP20 Pages delivery only.
+ * News is delivered by the gaemiGTP news widget, not this retired standalone page.
  */
 const TOP20_URL = "https://quotes.gaemigtp.com/market/trading-value?market=us";
-const NEWS_KEY = "news/latest.json";
 const json = (body, status, cache="no-store") => new Response(JSON.stringify(body), {
   status, headers: {"Content-Type":"application/json; charset=utf-8",
                    "Cache-Control":cache,"X-Content-Type-Options":"nosniff"}
 });
-
-async function news(request, env) {
-  if (!env.NEWS_R2 || typeof env.NEWS_R2.get !== "function") {
-    return json({ok:false,error:"news_storage_unavailable"},503);
-  }
-  let object;
-  try { object=await env.NEWS_R2.get(NEWS_KEY); }
-  catch (error) {
-    console.error("news_r2_read_failed",error?.name||"Error");
-    return json({ok:false,error:"news_storage_unavailable"},503);
-  }
-  if (!object) return json({ok:false,error:"news_not_found"},404);
-  const etag=object.httpEtag;
-  if(etag&&request.headers.get("If-None-Match")===etag)
-    return new Response(null,{status:304,headers:{ETag:etag,"Cache-Control":"public, max-age=60"}});
-  const headers=new Headers({"Content-Type":"application/json; charset=utf-8",
-    "Cache-Control":"public, max-age=60, stale-while-revalidate=60",
-    "X-Content-Type-Options":"nosniff"});
-  if(etag)headers.set("ETag",etag);
-  return new Response(object.body,{status:200,headers});
-}
 
 async function top20() {
   let response;
@@ -61,7 +38,6 @@ async function top20() {
 export default {
   async fetch(request,env,ctx) {
     const url=new URL(request.url);
-    if(request.method==="GET"&&url.pathname==="/news/latest.json")return news(request,env);
     if(request.method==="GET"&&url.pathname==="/market/trading-value"&&url.searchParams.get("market")==="us")return top20();
     return env.ASSETS.fetch(request);
   }
