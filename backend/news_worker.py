@@ -78,6 +78,14 @@ def process_r2_stock(market, stock_name, symbol, state):
             "url": url,
             "published_at": str(article.get("published_at")
                                 or article.get("pubDate") or ""),
+            # Keep the collection provider distinct from the publisher shown
+            # to readers (e.g. provider=naver, publisher=연합뉴스).
+            "provider": str(article.get("provider")
+                             or article.get("source_provider") or "unknown"),
+            "source_provider": str(article.get("source_provider")
+                                   or article.get("provider") or "unknown"),
+            "source_type": str(article.get("source_type") or "news_article"),
+            "publisher": str(article.get("source") or ""),
             "source": str(article.get("source") or ""),
         })
     if not items:
