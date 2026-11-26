@@ -1,0 +1,91 @@
+name: gaemigtp-main Pages preview (US industry fix)
+
+on:
+  push:
+    branches:
+      - ops/us-industry-marketcap-news-selection
+    paths:
+      - "frontend/**"
+      - "functions/**"
+      - "backend/kiwoom_us_top20_api.py"
+      - "backend/providers/kiwoom_us_industries.py"
+      - "tests/test_us_industry_change_preservation.py"
+      - ".github/workflows/gaemigtp-main-pages-preview-us-industry.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gaemigtp-main-pages-preview
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate Pages Functions bundle
+        run: |
+          test -s frontend/index.html
+          test -s functions/market/qqq-reason.js
+          test -s functions/market/us-daily-chart.js
+          test -s functions/stocks/us/instruments.json.js
+          node --check functions/market/qqq-reason.js
+          node --check functions/market/us-daily-chart.js
+          node --check functions/stocks/us/instruments.json.js
+
+      - name: Deploy preview to existing gaemigtp-main Pages project
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CF_API_TOKEN }}
+          accountId: 6cf7450897a598809db421965a07304b
+          command: pages deploy frontend --project-name gaemigtp-main --branch github-pages-preview
+
+      - name: Verify preview HTML and R2-backed Functions
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          case "$PREVIEW_URL" in
+            https://*.gaemigtp-main.pages.dev) ;;
+            *) echo "Unexpected preview URL: $PREVIEW_URL"; exit 1 ;;
+          esac
+          index="$RUNNER_TEMP/pages-index.html"
+          curl -fLsS --compressed --max-time 30 -H 'Cache-Control: no-cache' "$PREVIEW_URL/?v=$GITHUB_SHA" -o "$index"
+          if grep -qi 'Cloudflare Access' "$index"; then
+            echo "Preview deployment succeeded; Cloudflare Access blocks anonymous verification."
+            exit 0
+          fi
+          test -s "$index"
+          echo "Preview HTML verified: $PREVIEW_URL"
+
+          echo "Checking R2-backed US instrument snapshot"
+          curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 \
+            "$PREVIEW_URL/stocks/us/instruments.json" |
+            jq -e '.ok == true and (.items | type == "array" and length > 0)'
+
+          echo "Checking R2-backed US daily chart"
+          curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 \
+            "$PREVIEW_URL/market/us-daily-chart?symbol=NVDA" |
+            jq -e '.ok == true and .symbol == "NVDA" and (.rows | type == "array" and length > 0)'
+
+          echo "Checking QQQ news reason endpoint"
+          curl -fLsS --compressed --retry 3 --retry-all-errors --retry-delay 2 --max-time 30 \
+            "$PREVIEW_URL/market/qqq-reason" |
+            jq -e '.ok == true and (.items | type == "array")'
+
+      - name: Publish preview URL
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: |
+          {
+            printf '[Open preview deployment](%s)\n' "$PREVIEW_URL"
+            printf '[Open stable preview address](https://github-pages-preview.gaemigtp-main.pages.dev)\n'
+          } >> "$GITHUB_STEP_SUMMARY"
