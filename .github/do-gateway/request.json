@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service",
-  "lines": 160
+  "operation": "run",
+  "path": "ops/do-gateway/audit_live_top20_module_sha_20261126.py",
+  "request_id": "usindmodulehash20261126",
+  "timeout": 120
 }
