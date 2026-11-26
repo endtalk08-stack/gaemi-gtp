@@ -147,14 +147,6 @@ jobs:
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
           curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
-      - name: TEMP DEBUG -- check SPCX official industry classification on production
-        run: |
-          curl -fsS --retry 3 --max-time 20 "https://gaemigtp-main.pages.dev/stocks/us/instruments.json" \
-            -o /tmp/prod_instr.json || echo "curl failed, status $?"
-          echo "--- ok field and item count ---"
-          jq -r '.ok, (.items | length)' /tmp/prod_instr.json 2>/dev/null || cat /tmp/prod_instr.json | head -c 500
-          echo "--- SPCX entry ---"
-          jq -r '.items[]? | select(.symbol=="SPCX")' /tmp/prod_instr.json 2>/dev/null
       - name: Publish preview URL and verification scope
         if: always()
         env:
