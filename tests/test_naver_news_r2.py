@@ -6,6 +6,7 @@ from backend.services.naver_news_r2 import (
     build_naver_snapshot,
     publish_naver_news,
 )
+from backend.services.news_feed import fetch_naver_news
 
 
 class NaverNewsR2Tests(unittest.TestCase):
@@ -43,6 +44,34 @@ class NaverNewsR2Tests(unittest.TestCase):
         self.assertEqual(snapshot["count"], 2)
         self.assertEqual(snapshot["items"][0]["title"], "새 네이버 기사")
         self.assertEqual(snapshot["items"][1]["title"], "기존 SEC 기사")
+
+    @patch("backend.services.news_feed._fetch_queries")
+    def test_naver_market_feed_is_tagged_for_pages_market_section(self, fetch_queries):
+        fetch_queries.return_value = [{
+            "title": "미국 증시 주요 뉴스",
+            "description": "시장 요약",
+            "url": "https://example.com/market",
+            "published_at": "2026-11-26T01:00:00+00:00",
+            "source": "Example",
+        }]
+        items = fetch_naver_news(["미국 증시"], section="market")
+        self.assertEqual(items[0]["news_section"], "market")
+        self.assertEqual(items[0]["news_sections"], ["market"])
+        self.assertEqual(items[0]["category"], "시장동향")
+
+    @patch("backend.services.news_feed._fetch_queries")
+    def test_naver_stock_feed_is_tagged_for_pages_stock_section(self, fetch_queries):
+        fetch_queries.return_value = [{
+            "title": "삼성전자 실적 발표",
+            "description": "실적 내용",
+            "url": "https://example.com/stock",
+            "published_at": "2026-11-26T01:00:00+00:00",
+            "source": "Example",
+        }]
+        items = fetch_naver_news(["삼성전자"], section="stock")
+        self.assertEqual(items[0]["news_section"], "stock")
+        self.assertEqual(items[0]["news_sections"], ["stock"])
+        self.assertEqual(items[0]["category"], "종목")
 
     def test_empty_or_invalid_input_does_not_build_an_empty_snapshot(self):
         with self.assertRaisesRegex(ValueError, "no_publishable_naver_news"):
