@@ -1,0 +1,30 @@
+name: Test US regular-session quote recovery preview
+
+on:
+  push:
+    branches: [fix/us-close-recovery-preview-20261126]
+    paths:
+      - 'backend/kiwoom_us_top20_api.py'
+      - 'tests/test_us_quote_change.py'
+      - '.github/workflows/test-us-close-recovery-preview.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  quote-recovery-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Test US quote recovery and validation
+        run: python -m unittest discover -s tests -p 'test_us_quote_change.py' -v
