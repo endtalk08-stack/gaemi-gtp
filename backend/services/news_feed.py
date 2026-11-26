@@ -585,3 +585,32 @@ def fetch_stock_news(stock_name, limit=20, market=None, *, raise_on_error=False)
     return select_stock_news_for_analysis(stock_items + official_items + sec_items, stock_name, limit)
 
 
+
+def fetch_naver_news(queries, limit=200, per_query=20, *, raise_on_error=False):
+    """Collect a general Naver news list without mixing in SEC/official/TradingView.
+
+    The caller owns the query set. This keeps the Naver API adapter and its
+    authentication/request behavior unchanged while exposing a market-feed
+    collection entry point for the R2 publisher.
+    """
+    if isinstance(queries, str):
+        queries = [queries]
+    if not isinstance(queries, (list, tuple, set)):
+        raise TypeError("naver_news_queries_must_be_a_sequence")
+
+    normalized_queries = list(dict.fromkeys(
+        str(query or "").strip() for query in queries if str(query or "").strip()
+    ))
+    if not normalized_queries:
+        return []
+
+    per_query = max(1, min(int(per_query), 100))
+    limit = max(1, min(int(limit), 1000))
+    items = _fetch_queries(
+        normalized_queries,
+        category="전체",
+        per_query=per_query,
+        raise_on_error=raise_on_error,
+        unfiltered=False,
+    )
+    return [_enrich_item(item) for item in items[:limit]]
