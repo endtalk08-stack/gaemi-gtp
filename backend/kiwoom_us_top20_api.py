@@ -12,7 +12,7 @@ import select
 import struct
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -468,11 +468,59 @@ _US_CLOSE_LAST_READ = 0.0
 _US_CLOSE_MAX_BYTES = 100000
 
 
+def _us_market_holidays(year):
+    """NYSE full-day holidays, including observed fixed-date holidays."""
+    def observed(month, day):
+        value = date(year, month, day)
+        if value.weekday() == 5:
+            return value - timedelta(days=1)
+        if value.weekday() == 6:
+            return value + timedelta(days=1)
+        return value
+
+    def nth_weekday(month, weekday, number):
+        first = date(year, month, 1)
+        return first + timedelta(days=(weekday - first.weekday()) % 7 + 7 * (number - 1))
+
+    def last_weekday(month, weekday):
+        last = date(year, month + 1, 1) - timedelta(days=1) if month < 12 else date(year, 12, 31)
+        return last - timedelta(days=(last.weekday() - weekday) % 7)
+
+    # Gregorian Easter calculation; NYSE is closed on Good Friday.
+    a = year % 19
+    b, c = divmod(year, 100)
+    d, e = divmod(b, 4)
+    f, g = divmod(b + 8, 25)
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    easter_month = (h + l - 7 * m + 114) // 31
+    easter_day = ((h + l - 7 * m + 114) % 31) + 1
+    easter = date(year, easter_month, easter_day)
+
+    holidays = {
+        observed(1, 1), nth_weekday(1, 0, 3), nth_weekday(2, 0, 3),
+        easter - timedelta(days=2), last_weekday(5, 0),
+        observed(7, 4), nth_weekday(9, 0, 1),
+        nth_weekday(11, 3, 4), observed(12, 25),
+    }
+    if year >= 2022:
+        holidays.add(observed(6, 19))
+    return holidays
+
+
+def _is_us_market_holiday(day):
+    # Include adjacent years because New Year's Day can be observed on Dec 31.
+    return any(day in _us_market_holidays(year)
+               for year in range(day.year - 1, day.year + 2))
+
+
 def _us_close_phase(now=None):
     now = now or datetime.now(timezone.utc)
     local = now.astimezone(_US_CLOSE_NY)
     minute = local.hour * 60 + local.minute
-    if local.weekday() >= 5:
+    if local.weekday() >= 5 or _is_us_market_holiday(local.date()):
         return "none", local.date().isoformat()
     if 9 * 60 + 30 <= minute < 16 * 60:
         return "capture", local.date().isoformat()
@@ -498,8 +546,23 @@ def _us_close_read_disk():
 
 def _us_close_merge(incoming):
     global _US_CLOSE_CACHE
-    if not incoming or incoming["day"] != _US_CLOSE_CACHE["day"]:
+    if not isinstance(incoming, dict) or not isinstance(incoming.get("items"), dict):
         return
+    incoming_day = incoming.get("day")
+    try:
+        incoming_date = datetime.strptime(incoming_day, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return
+    current_day = _US_CLOSE_CACHE.get("day") or ""
+    try:
+        current_date = datetime.strptime(current_day, "%Y-%m-%d").date() if current_day else None
+    except ValueError:
+        current_date = None
+    # Keep the newest saved trading session across restarts and calendar days.
+    if current_date is not None and incoming_date < current_date:
+        return
+    if current_date is None or incoming_date > current_date:
+        _US_CLOSE_CACHE = {"day": incoming_day, "items": {}}
     for symbol, item in incoming["items"].items():
         if not SYMBOL.fullmatch(str(symbol)) or not isinstance(item, dict):
             continue
@@ -582,46 +645,56 @@ def _us_close_remember(quote, now=None):
 
 
 def _us_close_get(symbol, now=None, exchange=None):
-    global _US_CLOSE_CACHE, _US_CLOSE_LAST_READ
+    global _US_CLOSE_LAST_READ
     now = now or datetime.now(timezone.utc)
     phase, day = _us_close_phase(now)
-    if phase != "hold" or not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol):
+    # During the regular session, only a fresh tick may update the displayed
+    # percentage. Outside it, keep the last verified regular-session record.
+    if phase == "capture" or not isinstance(symbol, str) or not SYMBOL.fullmatch(symbol):
         return None
-    # The dated Kiwoom daily record takes precedence over the last regular
-    # tick. Its previous-close reference is independently checked by Yahoo.
-    if exchange in ("ND", "NY", "NA"):
+    # The dated Kiwoom daily record takes precedence during the close-hold
+    # window. Its previous-close reference is independently checked by Yahoo.
+    if phase == "hold" and exchange in ("ND", "NY", "NA"):
         from backend.us_quote_change import official_close_quote
         official = official_close_quote(symbol, exchange, now=now)
         if official is not None:
             return official
     with _US_CLOSE_LOCK:
-        if _US_CLOSE_CACHE["day"] != day:
-            _US_CLOSE_CACHE = {"day": day, "items": {}}
-            _US_CLOSE_LAST_READ = 0.0
-        if time.monotonic() - _US_CLOSE_LAST_READ >= 3:
+        if not _US_CLOSE_CACHE.get("day") or time.monotonic() - _US_CLOSE_LAST_READ >= 3:
             _us_close_merge(_us_close_read_disk())
             _US_CLOSE_LAST_READ = time.monotonic()
+        record_day = _US_CLOSE_CACHE.get("day")
         row = _US_CLOSE_CACHE["items"].get(symbol)
         if not isinstance(row, dict):
             return None
         try:
+            record_date = datetime.strptime(record_day, "%Y-%m-%d").date()
+            today = datetime.strptime(day, "%Y-%m-%d").date()
             observed = datetime.fromtimestamp(row["observed_at_ms"] / 1000, _US_CLOSE_NY)
-            if (observed.date().isoformat() != day or
-                    not (9 * 60 + 30 <= observed.hour * 60 + observed.minute < 16 * 60)
-                    or not (0 < row["price"] < 10000000)
-                    or not (-100 < row["change_pct"] < 10000)
-                    or not (isinstance(row.get("reference_close_date"), str)
-                            and row["reference_close_date"] < day)):
+            price, change_pct = row["price"], row["change_pct"]
+            reference_date = row.get("reference_close_date")
+            age_days = (today - record_date).days
+            if (age_days < 0 or age_days > 10
+                    or observed.date() != record_date
+                    or not (9 * 60 + 30 <= observed.hour * 60 + observed.minute < 16 * 60)
+                    or type(price) not in (int, float) or not math.isfinite(price)
+                    or not 0 < price < 10000000
+                    or type(change_pct) not in (int, float) or not math.isfinite(change_pct)
+                    or not -100 < change_pct < 10000
+                    or not isinstance(reference_date, str)):
+                return None
+            datetime.strptime(reference_date, "%Y-%m-%d")
+            if reference_date >= record_day:
                 return None
         except (KeyError, TypeError, ValueError, OverflowError):
             return None
         return {
             "symbol": symbol, "exchange": row.get("exchange"),
-            "price": row["price"], "change_pct": row["change_pct"],
-            "reference_close_date": row["reference_close_date"],
-            "reference_close_session": row["reference_close_date"],
-            "received_at_ms": int(now.timestamp() * 1000),
-            "stale": False, "source": "kiwoom:regular-last-verified",
+            "price": float(price), "change_pct": float(change_pct),
+            "reference_close_date": reference_date,
+            "reference_close_session": reference_date,
+            "received_at_ms": int(row["observed_at_ms"]),
+            "stale": record_day != day, "source": "kiwoom:regular-last-verified",
             "market_session": "last_regular_tick",
         }
 
@@ -760,7 +833,7 @@ def _feed_snapshot(store):
                 quote["reference_close_date"] = close_date
         quote["stale"] = now_ms - quote["received_at_ms"] > _QQQ_STALE_MS
     # The file also supplies a last verified quote after a process restart.
-    if _us_close_phase()[0] == "hold":
+    if _us_close_phase()[0] != "capture":
         if store is _TOP20_QUOTES:
             wanted = _TOP20_SYMBOLS
         elif store is _INDUSTRY_QUOTES:
