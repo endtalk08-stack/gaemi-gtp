@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/verify_quote_service_20261126.py",
-  "request_id": "quoteverify1_20261126",
-  "timeout": 240
+  "path": "ops/do-gateway/probe_us_widget_quotes_20261126.py",
+  "request_id": "uswidgetprobe2_20261126",
+  "timeout": 180
 }
