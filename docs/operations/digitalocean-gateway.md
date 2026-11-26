@@ -56,3 +56,18 @@ GitHub 저장소 **Settings → Environments → digitalocean-news-worker → De
 - API 토큰·비밀번호·SSH 키 값을 저장소나 요청 JSON에 넣지 않는다.
 - 원격 게이트웨이는 기존 서버에 이미 설치되어 있어야 한다. `main`에 워크플로를 복구하는 것 자체는 서버 설정이나 시세 데이터를 수정하지 않는다.
 - `gaemigtp`(하이픈 없는 별도 HTS 저장소), HTS 자동매매·Supabase·주문 관련 시스템은 이 배포 경로의 대상이 아니다.
+
+## 시세 서비스 원본 동기화 (2026-11-26)
+
+`gaemigtp-kiwoom-us-top20-api/https.service`(거래대금 TOP20, 업종 지도, SPY·DIA)가 쓰는 파일은
+서버에서 실제로 실행 중인 버전으로 `main`에 맞춰 두었다.
+
+- `backend/kiwoom_us_top20_api.py`, `backend/kiwoom_us_live_prices.py`, `backend/us_quote_change.py`,
+  `backend/providers/kiwoom_us_industries.py`, `ops/systemd/gaemigtp-kiwoom-us-top20-*.service`
+- 이 파일을 서버에 올릴 때는 반드시 `main`의 현재 버전을 기준으로 수정한다. 예전 사본이나
+  작업 브랜치의 오래된 파일을 그대로 `deploy`하면 이미 고친 문제가 되살아난다.
+- `.github/workflows/us-quote-service-check.yml`이 `main`과 배포 브랜치에서 아래 재발 방지 테스트를 실행한다.
+  - 장이 닫혀 있을 때 업종 ETF가 마지막 거래일 종가 등락률을 보여줄 것
+  - 장 마감 뒤(휴장일·주말·장 시작 전) 저장된 TOP20 파일의 등락률을 버리지 않을 것
+  - 화면 요청이 키움 ETF 갱신을 기다리지 않을 것, ETF 거래소 목록은 하루 캐시할 것
+  - 두 서비스가 `/var/lib/gaemigtp-news`에 마지막 종가 파일을 쓸 수 있을 것

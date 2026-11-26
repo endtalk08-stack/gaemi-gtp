@@ -123,7 +123,7 @@ class EtfIndustryMapTests(unittest.TestCase):
             "IBIT": "ND", "SOXX": "ND", "XBI": "NY", "XLB": "NY",
             "XLC": "NY", "XLE": "NY", "XLF": "NY", "XLI": "NY",
             "XLK": "NY", "XLP": "NY", "XLRE": "NY", "XLU": "NY",
-            "XLV": "NY", "XLY": "NY", "SPY": "NY", "DIA": "NY",
+            "XLV": "NY", "XLY": "NY",
         }
         records = [
             {"stk_cd": symbol, "stex_tp": exchange, "etn": "N"}
@@ -142,12 +142,11 @@ class EtfIndustryMapTests(unittest.TestCase):
         self.assertEqual(set(actual), set(industries.ETF_TICKERS))
         call.assert_called_once_with("usa10104", {"stex_tp": "%"}, token="test")
         with patch.object(industries, "_call", return_value={"list": records}) as second_call:
-            widgets = industries.fetch_us_etf_exchanges(token="test", tickers={"SPY", "DIA"})
-        self.assertEqual(widgets, {"SPY": "NY", "DIA": "NY"})
-        # The first scan already walked Kiwoom's entire exchange listing and
-        # found every ticker (including SPY/DIA); a later lookup for a
-        # different subset must be served from that cache, not trigger
-        # another expensive 40-page scan.
+            subset = industries.fetch_us_etf_exchanges(token="test", tickers={"XLK", "SOXX"})
+        self.assertEqual(subset, {"XLK": "NY", "SOXX": "ND"})
+        # The first scan already walked Kiwoom's entire exchange listing; a
+        # later lookup for a different subset must be served from that cache,
+        # not trigger another expensive 40-page scan.
         second_call.assert_not_called()
 
     def test_etf_exchange_scan_result_is_cached_for_other_missing_subsets(self):
@@ -160,7 +159,7 @@ class EtfIndustryMapTests(unittest.TestCase):
         industries._ETF_EXCHANGE_CACHE.clear()
         industries._ETF_EXCHANGE_CACHE_EXPIRES_AT = 0.0
         records = [{"stk_cd": symbol, "stex_tp": "1", "etn": "N"}
-                   for symbol in (industries.ETF_TICKERS | industries.MARKET_WIDGET_ETF_TICKERS)]
+                   for symbol in industries.ETF_TICKERS]
         with patch.object(industries, "_call", return_value={"list": records}) as call:
             first = industries.fetch_us_etf_exchanges(token="test", tickers={"XLY"})
             second = industries.fetch_us_etf_exchanges(token="test", tickers={"XLC"})
@@ -169,60 +168,66 @@ class EtfIndustryMapTests(unittest.TestCase):
         call.assert_called_once_with("usa10104", {"stex_tp": "%"}, token="test")
 
     def test_map_and_widget_quotes_are_requested_separately(self):
+        # SPY/DIA use their own widget path; the sector map never asks for them.
         api._US_INDUSTRY_ETF_CACHE.clear()
+        api._ETF_QUOTES.clear()
+        requested = []
 
         def quotes(*, symbols):
-            return [{"symbol": symbol, "price": 100, "change_pct": 1,
-                     "received_at_ms": 1763850000000} for symbol in symbols]
+            requested.append(set(symbols))
+            return [{"symbol": symbol, "price": 100.0, "exchange": "NY",
+                     "received_at_ms": int(time.time() * 1000)} for symbol in symbols]
 
-        with patch.object(industries, "fetch_us_etf_quotes", side_effect=quotes) as fetch:
+        with patch.object(industries, "fetch_us_etf_quotes", side_effect=quotes), \
+             patch.object(api, "_validated_snapshot_change", return_value=(1.0, "2026-11-24")), \
+             patch.object(api, "_us_close_get", return_value=None):
             industry = api._get_us_industry_etf_quotes()
-            widgets = api._get_us_industry_etf_quotes(symbols={"SPY", "DIA"})
         self.assertEqual({row["symbol"] for row in industry}, industries.ETF_TICKERS)
-        self.assertEqual({row["symbol"] for row in widgets}, {"SPY", "DIA"})
-        self.assertEqual(fetch.call_count, 2)
+        self.assertTrue(requested and all(not ({"SPY", "DIA"} & batch) for batch in requested))
+        self.assertTrue(callable(api._get_market_widget_quotes))
 
     def test_partial_etf_quotes_are_retried_soon_not_frozen_for_30_minutes(self):
-        # A snapshot missing some sector ETFs (e.g. XLY, XLC, XLI, XLRE, XLB)
-        # must get a short retry window, not the 30-minute TTL reserved for a
-        # complete set -- otherwise those sectors show no change rate until
-        # the long TTL finally expires.
+        # ETFs missing from one Kiwoom snapshot must be retried within the
+        # short per-symbol ETF TTL, never frozen for 30 minutes.
         api._US_INDUSTRY_ETF_CACHE.clear()
+        api._ETF_QUOTES.clear()
         partial = industries.ETF_TICKERS - {"XLY", "XLC", "XLI", "XLRE", "XLB"}
 
         def quotes(*, symbols):
-            return [{"symbol": symbol, "price": 100, "change_pct": 1,
-                     "received_at_ms": 1763850000000} for symbol in symbols if symbol in partial]
+            return [{"symbol": symbol, "price": 100.0, "exchange": "NY",
+                     "received_at_ms": int(time.time() * 1000)}
+                    for symbol in symbols if symbol in partial]
 
-        with patch.object(industries, "fetch_us_etf_quotes", side_effect=quotes):
+        with patch.object(industries, "fetch_us_etf_quotes", side_effect=quotes), \
+             patch.object(api, "_validated_snapshot_change", return_value=(1.0, "2026-11-24")), \
+             patch.object(api, "_us_close_get", return_value=None), \
+             patch.object(api, "_last_session_close", return_value=None):
             result = api._get_us_industry_etf_quotes()
-        self.assertEqual({row["symbol"] for row in result}, partial)
-        entry = api._US_INDUSTRY_ETF_CACHE["industry"]
-        self.assertLessEqual(entry["expires_at"] - time.monotonic(), 300)
+        with_rate = {row["symbol"] for row in result if row["change_pct"] is not None}
+        self.assertEqual(with_rate, partial)
+        for symbol in industries.ETF_TICKERS - partial:
+            refresh_at, _ = api._US_INDUSTRY_ETF_CACHE[symbol]
+            self.assertLessEqual(refresh_at - time.monotonic(), 300)
 
     def test_live_websocket_tick_wins_over_rest_snapshot(self):
-        # The same live Kiwoom feed that drives QQQ and the TOP20 list also
-        # carries ETF ticks (see get_us_industry_symbols -> _set_industry_symbols).
-        # _get_us_industry_etf_quotes must prefer a fresh live tick over
-        # whatever the REST snapshot says for that symbol -- this is the fix
-        # for ETF headings (e.g. SOXX) showing a stale/wrong sign while the
-        # live feed (and NVDA, SOXX's largest holding) showed the real move.
+        # A fresh live Kiwoom tick must win over the REST snapshot for that
+        # symbol (the fix for SOXX showing the wrong sign vs its holdings).
         api._US_INDUSTRY_ETF_CACHE.clear()
-        api._INDUSTRY_QUOTES.clear()
-        api._INDUSTRY_QUOTES["SOXX"] = {
-            "price": 140.0, "change_pct": 5.5, "received_at_ms": int(time.time() * 1000),
-        }
+        live = [{"symbol": "SOXX", "price": 140.0, "change_pct": 5.5,
+                 "received_at_ms": int(time.time() * 1000), "stale": False}]
 
         def rest_quotes(*, symbols):
-            return [{"symbol": "SOXX", "price": 130.2, "change_pct": -5.62,
+            return [{"symbol": "SOXX", "price": 130.2, "exchange": "ND",
                      "received_at_ms": int(time.time() * 1000)}]
 
-        with patch.object(industries, "fetch_us_etf_quotes", side_effect=rest_quotes):
+        with patch.object(api, "_etf_snapshot", return_value=live), \
+             patch.object(industries, "fetch_us_etf_quotes", side_effect=rest_quotes), \
+             patch.object(api, "_validated_snapshot_change", return_value=(-5.62, "2026-11-24")), \
+             patch.object(api, "_us_close_get", return_value=None):
             result = api._get_us_industry_etf_quotes()
         by_symbol = {row["symbol"]: row for row in result}
         self.assertEqual(by_symbol["SOXX"]["change_pct"], 5.5)
         self.assertEqual(by_symbol["SOXX"]["source"], "kiwoom:websocket")
-        api._INDUSTRY_QUOTES.clear()
 
     def test_missing_etf_quotes_overlap_without_extra_calls(self):
         symbols = ("DIA", "SPY", "XLK")

@@ -39,7 +39,6 @@ EXCHANGES = {"NA", "ND", "NY"}
 EXCHANGE_CODES = {"1": "NY", "2": "ND", "3": "NA"}
 ETF_TICKERS = frozenset({"XLK", "XLV", "XLF", "XLY", "XLC", "XLI", "XLP",
                          "XLE", "XLU", "XLRE", "XLB", "SOXX", "XBI", "IBIT"})
-MARKET_WIDGET_ETF_TICKERS = frozenset({"SPY", "DIA"})
 BITCOIN_COMPANIES = ("COIN", "MSTR", "MARA", "RIOT", "CLSK")
 
 # Eleven display groups based on official Kiwoom industry codes. The labels
@@ -601,24 +600,33 @@ _ETF_EXCHANGE_CACHE_TTL = 24 * 60 * 60  # A listed ETF's exchange essentially ne
 
 
 def fetch_us_etf_exchanges(*, token=None, tickers=None):
-    """Verify the agreed ETF ticker/exchange pairs against Kiwoom usa10104.
+    """Verify requested ETF ticker/exchange pairs against Kiwoom usa10104.
 
-    This pages through Kiwoom's *entire* exchange listing (up to 40 pages) to
-    resolve a handful of tickers, so the result is cached for a day instead of
-    being re-scanned from scratch every time a quote call finds one ETF
-    missing from the cheaper market-cap ranking snapshot.
+    The scan pages through Kiwoom's entire exchange listing (up to 40 pages),
+    so one complete scan of all heatmap ETFs is cached for a day instead of
+    being repeated on every quote refresh (the 10-20 s industry-tab delay).
     """
-    requested = ETF_TICKERS if tickers is None else (ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS).intersection(tickers)
     global _ETF_EXCHANGE_CACHE_EXPIRES_AT
+    requested = ETF_TICKERS if tickers is None else ETF_TICKERS.intersection(tickers)
+    if not requested:
+        return {}
     now = time.monotonic()
     with _ETF_EXCHANGE_CACHE_LOCK:
         if now < _ETF_EXCHANGE_CACHE_EXPIRES_AT and requested <= _ETF_EXCHANGE_CACHE.keys():
             return {symbol: _ETF_EXCHANGE_CACHE[symbol] for symbol in requested}
-    # Always scan for the full ticker universe, not just whatever subset this
-    # particular call needs: this walk already pages through Kiwoom's entire
-    # exchange listing, so one scan should refill the cache for every ticker,
-    # not just the handful the caller happened to be missing this round.
-    scan_universe = ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS
+    symbols = _scan_us_etf_exchanges(token=token)
+    if symbols:
+        with _ETF_EXCHANGE_CACHE_LOCK:
+            _ETF_EXCHANGE_CACHE.update(symbols)
+            # Only a complete scan earns the long TTL; a cut-short scan retries soon.
+            complete = symbols.keys() >= ETF_TICKERS
+            _ETF_EXCHANGE_CACHE_EXPIRES_AT = now + (_ETF_EXCHANGE_CACHE_TTL if complete else 60)
+    return {symbol: symbols[symbol] for symbol in requested if symbol in symbols}
+
+
+def _scan_us_etf_exchanges(*, token=None):
+    """One walk of the usa10104 listing for every heatmap ETF."""
+    requested = ETF_TICKERS
     symbols = {}
     continuation = None
     for _ in range(40):
@@ -635,38 +643,27 @@ def fetch_us_etf_exchanges(*, token=None, tickers=None):
             symbol = str(row.get("stk_cd") or "").strip().upper()
             exchange = EXCHANGE_CODES.get(str(row.get("stex_tp") or "").strip().upper(),
                                           str(row.get("stex_tp") or "").strip().upper())
-            if symbol in scan_universe and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
+            if symbol in requested and exchange in EXCHANGES and str(row.get("etn") or "").strip() not in ("Y", "1"):
                 symbols[symbol] = exchange
-        if symbols.keys() >= scan_universe or data.get("_cont_yn") != "Y":
+        if symbols.keys() >= requested or data.get("_cont_yn") != "Y":
             break
         next_key = str(data.get("_next_key") or "")
         if not next_key or next_key == continuation:
             break
         continuation = next_key
-    if symbols:
-        with _ETF_EXCHANGE_CACHE_LOCK:
-            _ETF_EXCHANGE_CACHE.update(symbols)
-            # Only a scan that ran to completion (found everything, or Kiwoom
-            # had no more pages) earns the long TTL; a partial result (e.g. a
-            # transient Kiwoom hiccup cut it short) should be retried soon.
-            is_complete = symbols.keys() >= scan_universe
-            _ETF_EXCHANGE_CACHE_EXPIRES_AT = now + (_ETF_EXCHANGE_CACHE_TTL if is_complete else 60)
-    return {symbol: symbols[symbol] for symbol in requested if symbol in symbols}
+    return symbols
 
 
 def fetch_us_etf_quotes(*, token=None, symbols=None):
-    """Return the latest read-only quote snapshot for the fourteen map ETFs.
-
-    Prefer the single ETF market-cap ranking response. Only query individual
-    ETFs when the ranking response omits one of the agreed symbols.
-    """
-    requested = ETF_TICKERS if symbols is None else (ETF_TICKERS | MARKET_WIDGET_ETF_TICKERS).intersection(symbols)
+    """Return read-only prices and daily changes for the requested heatmap ETFs."""
+    requested = ETF_TICKERS if symbols is None else ETF_TICKERS.intersection(symbols)
     if not requested:
         return []
     access_token = token or _access_token()
     quotes = {}
     captured_at_ms = int(time.time() * 1000)
 
+    # One official ETF market-cap TR supplies most ETF quotes in one request.
     try:
         snapshot = fetch_us_etf_marketcap(token=access_token, limit=100)
         for row in snapshot.get("items", []):
@@ -685,14 +682,17 @@ def fetch_us_etf_quotes(*, token=None, symbols=None):
                 "received_at_ms": captured_at_ms,
                 "source": "kiwoom:usa20551",
             }
-    except KiwoomReadOnlyError:
-        pass
+    except KiwoomReadOnlyError as exc:
+        print("ETF_MARKETCAP_TR_FAILED", repr(exc), flush=True)
 
+    # Fill only missing agreed ETFs, using the verified exchange list and
+    # the existing read-only single-symbol quote TR.
     missing = requested.difference(quotes)
     if missing:
         try:
             exchanges = fetch_us_etf_exchanges(token=access_token, tickers=missing)
-        except KiwoomReadOnlyError:
+        except KiwoomReadOnlyError as exc:
+            print("ETF_EXCHANGE_LOOKUP_FAILED", sorted(missing), repr(exc), flush=True)
             exchanges = {}
         def read_missing(symbol):
             exchange = exchanges.get(symbol)
@@ -700,11 +700,15 @@ def fetch_us_etf_quotes(*, token=None, symbols=None):
                 return None
             try:
                 quote = fetch_us_quote(symbol, exchange, token=access_token)
-            except (KiwoomReadOnlyError, ValueError):
+            except (KiwoomReadOnlyError, ValueError) as exc:
+                print("ETF_SINGLE_QUOTE_FAILED", symbol, exchange, repr(exc), flush=True)
                 return None
             price = _positive_price(quote.get("current"))
             change_pct = _number(quote.get("change_pct"))
             if price is None or change_pct is None:
+                print("ETF_SINGLE_QUOTE_INCOMPLETE", symbol, exchange,
+                      "price=" + repr(quote.get("current")),
+                      "change_pct=" + repr(quote.get("change_pct")), flush=True)
                 return None
             return {
                 "symbol": symbol,
@@ -758,5 +762,27 @@ def fetch_us_anthropic_stock(*, token=None):
         return None
     return {"symbol": "ANT", "exchange": "ND", "name": "앤스로픽",
             "issuer_key": "US:ANTHROPIC", "market_cap_usd": cap * 1000,
+            "change_pct": _number(record.get("flu_rt")),
+            "price": _positive_price(record.get("cur_prc"))}
+
+
+def fetch_us_spacex_stock(*, token=None):
+    """Verify SPCX against Kiwoom before adding it to the requested communication slot.
+
+    SpaceX's own official industry classification (per the separate R2
+    instruments snapshot) is "Wireless Telecommunication Services", which is
+    exactly the "communication" heatmap group's own alias -- this is not an
+    arbitrary insert, it is filling in a company Kiwoom's own per-GICS-code
+    industry endpoint simply doesn't carry yet.
+    """
+    record = _call("usa20100", {"stex_tp": "ND", "stk_cd": "SPCX"},
+                   token=token or _access_token())
+    cap = _number(record.get("mac"))
+    if (str(record.get("stk_cd") or "").strip().upper() != "SPCX"
+            or str(record.get("stex_tp") or "").strip().upper() != "ND"
+            or cap is None or cap <= 0):
+        return None
+    return {"symbol": "SPCX", "exchange": "ND", "name": "스페이스X",
+            "issuer_key": "US:SPACEX", "market_cap_usd": cap * 1000,
             "change_pct": _number(record.get("flu_rt")),
             "price": _positive_price(record.get("cur_prc"))}
