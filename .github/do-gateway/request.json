@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/audit_top20_close_pct_match_20261126.py",
-  "request_id": "audit-top20-close-match-20261126",
+  "path": "ops/do-gateway/verify_top20_all_pct_vs_yahoo_20261126.py",
+  "request_id": "verify-all-top20-yahoo-20261126",
   "timeout": 120
 }
