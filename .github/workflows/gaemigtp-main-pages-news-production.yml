@@ -147,6 +147,14 @@ jobs:
             jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
           curl -fsS --retry 3 --max-time 20 "$DEPLOYMENT_URL/market/us-daily-chart?symbol=NVDA" |
             jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
+      - name: TEMP DEBUG -- check optical networking symbols are in the live industry feed
+        run: |
+          curl -fsS --retry 3 --max-time 20 "https://quotes.gaemigtp.com/market/us-industries?include_stocks=1&view=heatmap" \
+            -o /tmp/industries.json
+          echo "--- group keys ---"
+          jq -r '.items[].key' /tmp/industries.json
+          echo "--- COHR/CRDO/CIEN search ---"
+          jq -r '.items[] | .key as $k | .stocks[]? | select(.symbol=="COHR" or .symbol=="CRDO" or .symbol=="CIEN") | "\($k): \(.symbol) \(.name) mcap=\(.market_cap_usd) change_pct=\(.change_pct)"' /tmp/industries.json
       - name: Publish preview URL and verification scope
         if: always()
         env:
