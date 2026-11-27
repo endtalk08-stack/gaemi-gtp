@@ -122,7 +122,7 @@
     const rankingSection = list?.parentElement;
     const title = sidebar.querySelector('#rightListTitle');
     const changeSortButton = sidebar.querySelector('#rightListMetric');
-    const backendUrl = 'https://quotes.gaemigtp.com';
+    const backendUrl = window.location.origin;
     const market = 'us';
     let tab = 'value';
     const syncIndustryTabLayout = () => {
