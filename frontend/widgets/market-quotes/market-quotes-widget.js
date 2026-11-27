@@ -121,12 +121,19 @@
     try {
       const data = await getJson(HISTORY_URL(symbol));
       const bars = Array.isArray(data?.bars) ? data.bars.slice().reverse() : [];
+      const historical = [];
       for (const bar of bars) {
         const close = number(bar?.close);
-        if (close === null || close <= 0) continue;
+        const timestamp = timeMs(bar?.openTime);
+        if (close === null || close <= 0 || !timestamp) continue;
         const price = id === 'gold' && fxRate ? close * fxRate / GRAMS_PER_TROY_OUNCE : close;
-        appendPoint(id, price, bar.openTime);
+        historical.push({ value: price, time: timestamp });
       }
+      const latest = state[id].points[state[id].points.length - 1];
+      const lastHistoryTime = historical[historical.length - 1]?.time || 0;
+      state[id].points = historical;
+      if (latest && latest.time > lastHistoryTime) state[id].points.push(latest);
+      while (state[id].points.length > 120) state[id].points.shift();
     } catch (_) {
       state[id].historyLoaded = false;
     }
