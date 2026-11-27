@@ -502,8 +502,6 @@
             </svg>
             <div class="central-widget-card__kospi-copy">
               <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><span class="central-widget-card--live-quote__price"><strong data-market-quote-value>—</strong><span>${unit}</span></span><span class="central-widget-card__kospi-change" data-market-quote-percent>—</span></div>
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-change" data-market-quote-change>—</div>
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-reason" data-market-quote-meta>시세 연결 중</div>
             </div>
           </div>
         </article>`;
