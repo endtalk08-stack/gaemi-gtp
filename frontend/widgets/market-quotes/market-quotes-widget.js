@@ -157,10 +157,13 @@
     if (!hasFx && !hasGold) return;
     busy = true;
     try {
-      const [fxTick, goldTick] = await Promise.all([
-        hasFx || hasGold ? getJson(API + 'USDKRW') : Promise.resolve(null),
-        hasGold ? getJson(API + 'XAUUSD') : Promise.resolve(null)
-      ]);
+      const symbols = ['USDKRW'];
+      if (hasGold) symbols.push('XAUUSD');
+      const query = symbols.map(symbol => 'symbols=' + encodeURIComponent(symbol)).join('&');
+      const ticks = await getJson(API + 'latest?' + query);
+      const fxTick = ticks?.USDKRW;
+      const goldTick = ticks?.XAUUSD;
+      if (!fxTick) throw new Error('USDKRW tick unavailable');
       const fxRate = number(fxTick?.mid);
       const goldUsd = number(goldTick?.mid);
       if (fxRate !== null && fxRate > 0) {
