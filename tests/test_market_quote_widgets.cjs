@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { JSDOM } = require('jsdom');
 
-test('USD/KRW and gold plugins render real source data with explicit freshness labels', async () => {
+test('USD/KRW and gold widgets render live ticks, daily changes and intraday charts', async () => {
   const dom = new JSDOM('<main id="mainContent"><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section></main><aside id="leftMarketSidebar"></aside><aside id="rightPanel"><div id="rightPanelContent"></div></aside>', {
     url: 'https://example.test', runScripts: 'outside-only'
   });
@@ -12,21 +12,31 @@ test('USD/KRW and gold plugins render real source data with explicit freshness l
   Object.defineProperty(w.document, 'hidden', { value: false, configurable: true });
   w.AbortSignal = AbortSignal;
   const requested = [];
+  const now = Date.now();
+  const bars = (base) => ({
+    bars: [
+      { openTime: new Date(now - 120000).toISOString(), close: base - 1, isOpen: false },
+      { openTime: new Date(now - 60000).toISOString(), close: base, isOpen: true }
+    ]
+  });
   w.fetch = async (url) => {
-    requested.push(String(url));
-    if (String(url).includes('frankfurter.dev')) {
-      return { ok: true, json: async () => ({ base: 'USD', quote: 'KRW', date: '2026-11-26', rate: 1450.25 }) };
-    }
-    if (String(url).includes('xaus.com')) {
+    const value = String(url);
+    requested.push(value);
+    if (value === 'https://biquote.io/api/USDKRW') {
       return { ok: true, json: async () => ({
-        xau: { price: 187500, currency: 'KRW', unit: 'gram' },
-        data_state: { status: 'fresh', as_of: '2026-11-27T01:00:00Z' },
-        price_as_of: '2026-11-27T01:00:00Z',
-        fx_stale: false,
-        stale: false
+        symbol: 'USDKRW', mid: 1450.5, dayDiffPercent: -0.2,
+        marketState: 'open', stale: false, quoteAgeSeconds: 2, timestamp: now
       }) };
     }
-    throw new Error('Unexpected URL: ' + url);
+    if (value === 'https://biquote.io/api/XAUUSD') {
+      return { ok: true, json: async () => ({
+        symbol: 'XAUUSD', mid: 4200, dayDiffPercent: 1.1,
+        marketState: 'open', stale: false, quoteAgeSeconds: 2, timestamp: now
+      }) };
+    }
+    if (value.includes('/USDKRW/ohlc?')) return { ok: true, json: async () => bars(1450.5) };
+    if (value.includes('/XAUUSD/ohlc?')) return { ok: true, json: async () => bars(4200) };
+    throw new Error('Unexpected URL: ' + value);
   };
   w.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
   w.eval(readFileSync('frontend/widgets/market-quotes/market-quotes-widget.js', 'utf8'));
@@ -35,22 +45,25 @@ test('USD/KRW and gold plugins render real source data with explicit freshness l
   dock.initialize();
   assert.equal(dock.add('usdkrw'), true);
   assert.equal(dock.add('gold'), true);
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise(resolve => setTimeout(resolve, 25));
 
   const fx = w.document.querySelector('[data-market-quote-widget="usdkrw"]');
   const gold = w.document.querySelector('[data-market-quote-widget="gold"]');
-  assert.equal(fx.querySelector('[data-market-quote-value]').textContent, '1,450.25');
-  assert.equal(gold.querySelector('[data-market-quote-value]').textContent, '187,500');
-  assert.match(fx.querySelector('[data-market-quote-meta]').textContent, /기준환율/);
-  assert.match(gold.querySelector('[data-market-quote-meta]').textContent, /국제 현물/);
-  assert.equal(fx.classList.contains('is-market-quote-stale'), false);
-  assert.equal(gold.classList.contains('is-market-quote-stale'), false);
-  assert.ok(fx.classList.contains('central-widget-card--kospi'));
-  assert.ok(gold.classList.contains('central-widget-card--kospi'));
-  assert.equal(fx.querySelector('.central-widget-card__kospi-title').textContent.replace(/\s+/g, ' ').trim(), 'USD/KRW원/달러');
-  assert.equal(requested.length, 2);
-  assert.ok(requested.some(url => url.includes('/v2/rate/usd/krw')));
-  assert.ok(requested.some(url => url.includes('/api/v1/spot?currency=KRW&unit=gram&compact=1')));
+  assert.equal(fx.querySelector('[data-market-quote-value]').textContent, '1,450.50');
+  assert.equal(gold.querySelector('[data-market-quote-value]').textContent,
+    (4200 * 1450.5 / 31.1034768).toLocaleString('ko-KR', { maximumFractionDigits: 0 }));
+  assert.equal(fx.querySelector('[data-market-quote-change]').textContent, '-0.20%');
+  assert.equal(gold.querySelector('[data-market-quote-change]').textContent, '+0.90%');
+  assert.match(fx.querySelector('[data-market-quote-meta]').textContent, /실시간/);
+  assert.match(gold.querySelector('[data-market-quote-meta]').textContent, /국제 금 현물/);
+  assert.equal(fx.classList.contains('central-widget-card--qqq-muted'), false);
+  assert.equal(gold.classList.contains('central-widget-card--qqq-muted'), false);
+  assert.ok(fx.querySelector('.central-widget-card__sparkline'));
+  assert.ok(gold.querySelector('.central-widget-card__sparkline'));
+  assert.ok(requested.includes('https://biquote.io/api/USDKRW'));
+  assert.ok(requested.includes('https://biquote.io/api/XAUUSD'));
+  assert.ok(requested.some(url => url.includes('/USDKRW/ohlc?interval=1m')));
+  assert.ok(requested.some(url => url.includes('/XAUUSD/ohlc?interval=1m')));
   assert.ok(requested.every(url => !/api.?key|token/i.test(url)));
 
   dock.remove('usdkrw');
