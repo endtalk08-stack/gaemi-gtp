@@ -23,3 +23,4 @@ get /market/qqq-reason | jq -e '.ok == true and (.items | type == "array")'
 get /stocks/us/instruments.json |
   jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
 get "/market/us-daily-chart?symbol=NVDA" | jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
+
