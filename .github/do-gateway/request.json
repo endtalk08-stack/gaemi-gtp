@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/us_news_ai_daily.py","target":"backend/us_news_ai_daily.py"}
+{"operation":"run","path":"ops/do-gateway/publish_company_intros_20261128.py","request_id":"company-intros-publish-20261128","timeout":120}
