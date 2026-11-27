@@ -72,7 +72,7 @@
           <span class="gnw-title">${escape(item.title)}</span>
         </div>
       </div>
-      <p class="gnw-summary">${escape(item.summary)}</p>
+      ${item.summary ? `<p class="gnw-summary">${escape(item.summary)}</p>` : ''}
     </button>`;
   }
   // ---- 분석 tab: 개미지티피 articles on the daily US TOP20, shown like any news ----
@@ -218,7 +218,7 @@
     }
     const cat=e.target.closest('[data-gnw-cat]');
     if(cat){
-      selected=cat.dataset.gnwCat;visible=5;render();
+      selected=cat.dataset.gnwCat;visible=Number.MAX_SAFE_INTEGER;render();
       refreshAi();
       syncAiRefresh();
       return;

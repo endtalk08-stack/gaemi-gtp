@@ -136,8 +136,10 @@ test('translated US macro headlines: own category, original title, official link
   const rows = [...root.querySelectorAll('.gnw-item')];
   assert.equal(rows.length, 1);
   assert.equal(rows[0].querySelector('.gnw-title').textContent, '연준, FOMC 성명 발표');
-  assert.equal(rows[0].querySelector('.gnw-summary').textContent, '원문: Federal Reserve issues FOMC statement');
+  assert.equal(rows[0].querySelector('.gnw-summary'), null);        // list: Korean only, nothing to read twice
   rows[0].click();
+  assert.deepEqual([...root.querySelectorAll('.gnw-article-body p')].map(p => p.textContent),
+    ['원문: Federal Reserve issues FOMC statement']);                 // original only in the detail
   assert.equal(root.querySelector('.gnw-detail-source').textContent, '연준');
   assert.equal(root.querySelector('.gnw-source-link').getAttribute('href'), 'https://www.federalreserve.gov/x');
 });
@@ -152,4 +154,27 @@ test('economic data shows the translated release summary, not only the release n
   assert.deepEqual([...root.querySelectorAll('.gnw-article-body p')].map(p => p.textContent),
     ['실질 GDP는 3분기에 연율 4.3% 증가했어요.', '투자와 소비 증가가 성장을 이끌었어요.',
      '원문: GDP (Second Estimate), 3rd Quarter 2026']);
+});
+
+test('switching tabs never cuts the list to five articles', async (t) => {
+  const dom = new JSDOM('<div data-central-widget-id="news-feed"><section data-gnw-root></section></div>',
+    { url: 'https://example.test', runScripts: 'outside-only' });
+  const w = dom.window;
+  t.after(() => w.close());
+  const many = Array.from({ length: 12 }, (_, i) => ({ status: 'ok', type: 'news', symbol: 'S' + 'ABCDEFGHIJKL'[i],
+    name: 'n' + i, headline: '기사' + i, headline_keyword: 'k', keywords: ['k', 'b', 'c'], lines: ['a', 'b', 'c'],
+    generated_at: '2026-11-27T1' + (i % 10) + ':00:00Z' }));
+  w.fetch = async url => ({ ok: true, json: async () => (url === '/news/ai/us/top20' ? { ok: true, items: many }
+    : url === '/news/macro/us' ? { ok: true, items: [] } : { ok: true, items: {} }) });
+  w.eval(read('frontend/widgets/news/us-news-ai.js'));
+  w.eval(read('frontend/widgets/news/us-macro-news.js'));
+  w.eval(read('frontend/widgets/news/news-widget.js'));
+  w.GaemiGTPNewsWidget.mount();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const root = w.document.querySelector('[data-gnw-root]');
+  assert.equal(root.querySelectorAll('.gnw-item').length, 12);
+  root.querySelector('[data-gnw-cat="분석"]').click();
+  root.querySelector('[data-gnw-cat="전체"]').click();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(root.querySelectorAll('.gnw-item').length, 12);
 });
