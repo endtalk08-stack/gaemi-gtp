@@ -72,6 +72,7 @@ def show(label, items):
 
 
 def main():
+    time.sleep(75)
     print("ACTIVE " + subprocess.run(["systemctl", "is-active", "gaemigtp-kiwoom-us-top20-https.service",
                                       "gaemigtp-kiwoom-us-top20-api.service", "gaemigtp-kiwoom-us-value.timer"],
                                      text=True, capture_output=True).stdout.replace("\n", " "), flush=True)

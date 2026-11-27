@@ -1,4 +1,6 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-kiwoom-us-top20-api.service"
+  "operation": "run",
+  "path": "ops/do-gateway/probe_live_feeds_20261127.py",
+  "request_id": "livefeeds2_20261127",
+  "timeout": 240
 }
