@@ -583,7 +583,8 @@
       return;
     }
     title.textContent = chartSymbol + ' 일봉';
-    if (target.dataset.chartSymbol === chartSymbol && target.querySelector('canvas')) return;
+    const existing = chartInstances.get(target);
+    if (target.dataset.chartSymbol === chartSymbol && existing?.symbol === chartSymbol) return;
     target.dataset.chartSymbol = chartSymbol;
     void renderInlineChart(target, chartSymbol);
   }
