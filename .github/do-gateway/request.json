@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/audit_news_pipeline_20261127.py",
+  "request_id": "newsaudit1_20261127",
+  "timeout": 120
 }
