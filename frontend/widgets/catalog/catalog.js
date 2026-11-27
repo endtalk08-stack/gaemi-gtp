@@ -13,5 +13,6 @@
     'news-caption': { title: '속보', icon: 'radio-tower', description: '한 줄 뉴스 제목 자막' },
     'news-feed': { title: '뉴스', icon: 'newspaper', description: '검색·분류별 뉴스 피드' },
     'industry': { title: '업종', icon: 'layout-grid', description: '업종 ETF 등락률 및 시가총액 상위 종목' },
+    'chart': { title: '차트', icon: 'chart-candlestick', description: '선택 종목의 키움 일봉 차트' },
   });
 }());
