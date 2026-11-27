@@ -609,6 +609,22 @@
       draggedRow = null;
     });
 
+    // Daily AI analysis: "✦ 장기 공급계약 확대" on the third line of each TOP20 row.
+    const applyAiHeadlines = () => {
+      const loader = window.GaemiGTPUsNewsAi;
+      if (!loader || !list || market !== 'us' || tab !== 'value') return;
+      loader.load().then(() => {
+        const bySymbol = loader.bySymbol();
+        list.querySelectorAll(':scope > button[data-original-index]').forEach((button) => {
+          const issue = button.querySelector('[data-stock-issue]');
+          const item = bySymbol.get(button.dataset.stockSymbol);
+          if (!issue || item?.status !== 'ok') return;
+          issue.textContent = '✦ ' + item.headline_keyword;
+          issue.title = item.lines?.[0] || '';
+        });
+      });
+    };
+    window.addEventListener('gaemi:us-news-ai', applyAiHeadlines);
     const sidebarIssueTitle = (value) =>
       typeof value === 'string' ? value.split(/…|\.{3,}/, 1)[0].trim() : '';
 
@@ -815,6 +831,7 @@
         });
         applyChangeSort();
         void loadIndustryLabels();
+        applyAiHeadlines();
         paintLiveQuotes();
         syncQqqSocket();
       } catch (error) {
