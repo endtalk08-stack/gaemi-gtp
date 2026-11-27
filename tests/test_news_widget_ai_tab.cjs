@@ -89,3 +89,14 @@ test('an empty analysis list is left blank', async (t) => {
   assert.equal(root.querySelector('.gnw-list').textContent.trim(), '');
   assert.ok(!root.textContent.includes('뉴스'), 'no "뉴스 없음" style message');
 });
+
+test('전체 shows 개미지티피 articles and no design-file sample news', async (t) => {
+  const { root } = await widget(t);
+  root.querySelector('[data-gnw-cat="전체"]').click();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const titles = [...root.querySelectorAll('.gnw-item .gnw-title')].map(n => n.textContent);
+  assert.deepEqual(titles, ['애플, 아이폰16 AI 기능 광고 심의 착수', '마이크론, AI 메모리 장기 공급계약 확대',
+                            '테슬라 로보택시 일정 지연']);               // newest first; undated last
+  assert.ok(!root.textContent.includes('연준 의장 긴급 기자회견'));
+  assert.ok(!read('frontend/widgets/news/news-widget.js').includes('SOURCE_PREVIEW_ITEMS'));
+});
