@@ -1,5 +1,6 @@
 {
-  "operation": "deploy",
-  "path": "ops/systemd/gaemigtp-us-news-ai.service",
-  "target": "ops/systemd/gaemigtp-us-news-ai.service"
+  "operation": "run",
+  "path": "ops/do-gateway/check_news_ai_v2_20261128.py",
+  "request_id": "newsaiv2check1_20261128",
+  "timeout": 60
 }
