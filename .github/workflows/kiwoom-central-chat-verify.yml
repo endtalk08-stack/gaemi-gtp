@@ -10,6 +10,7 @@ on:
       - 'backend/services/stock_analysis.py'
       - 'backend/services/engine.py'
       - 'tests/test_kiwoom_central_quotes.py'
+      - 'tests/test_chat_stock_name_routing.cjs'
   push:
     branches: [main]
     paths:
@@ -44,6 +45,7 @@ jobs:
           node --check frontend/js/analysis-api.js
           node --check frontend/shell/center-chat/ai-chat.js
           node --check frontend/shell/center-chat/search-controls.js
+          node --test tests/test_chat_stock_name_routing.cjs
       - name: Source-isolated price tests
         run: |
           python -m unittest discover -s tests -p 'test_kiwoom_central_quotes.py' -v
