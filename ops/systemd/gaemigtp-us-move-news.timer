@@ -1,0 +1,11 @@
+[Unit]
+Description=Check US TOP20 price moves every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+Unit=gaemigtp-us-move-news.service
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
