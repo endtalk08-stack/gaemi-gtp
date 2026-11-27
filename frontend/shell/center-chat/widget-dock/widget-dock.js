@@ -634,7 +634,7 @@
       if (cached && Date.now() - cached.at < CHART_HISTORY_TTL) {
         data = cached.data;
       } else {
-        // Only the new Pages site reads chart history from R2; Render remains unchanged.
+        // Pages reads chart history from R2; stock analysis is handled by DigitalOcean.
         const chartOrigin = window.location.hostname === 'gaemigtp-main.pages.dev'
           ? window.location.origin : BACKEND_URL;
         const response = await fetch(chartOrigin + '/market/us-daily-chart?symbol=' +
