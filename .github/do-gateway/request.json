@@ -1,5 +1,5 @@
 {
   "operation": "deploy",
-  "path": "backend/us_news_ai_daily.py",
-  "target": "backend/us_news_ai_daily.py"
+  "path": "ops/systemd/gaemigtp-us-news-ai.service",
+  "target": "ops/systemd/gaemigtp-us-news-ai.service"
 }
