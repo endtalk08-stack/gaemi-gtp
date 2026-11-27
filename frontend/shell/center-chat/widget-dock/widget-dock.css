@@ -381,3 +381,62 @@
 
 /* An empty portable slot must not leave extra space above the right dashboard. */
 #rightPanelContent > [data-portable-widget-slot="right"]:empty { display: none !important; }
+
+
+/* USD/KRW and gold quote cards — compact, source-labelled market references. */
+.central-widget-card--market-quote {
+  min-height: 86px;
+  height: 86px;
+  padding: 10px 11px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.market-quote-widget__value {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+  color: var(--gtp-text);
+}
+.market-quote-widget__value strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 20px;
+  line-height: 23px;
+  font-weight: 700;
+  letter-spacing: -.35px;
+  font-variant-numeric: tabular-nums;
+}
+.market-quote-widget__value > span {
+  flex-shrink: 0;
+  color: var(--gtp-faint);
+  font-size: 10px;
+}
+.market-quote-widget__meta {
+  min-height: 12px;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--gtp-faint);
+  font-size: 9px;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.market-quote-widget__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--gtp-faint);
+  font-size: 8px;
+  line-height: 10px;
+}
+.market-quote-widget__footer a {
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.market-quote-widget__footer a:hover { color: var(--gtp-text); text-decoration: underline; }
+.central-widget-card--market-quote.is-market-quote-stale .market-quote-widget__value { opacity: .65; }
