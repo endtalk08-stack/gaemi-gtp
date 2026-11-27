@@ -249,6 +249,38 @@ test('left sidebar keeps all market tabs and restores moved widgets after refres
   assert.equal(marketSidebar.includes('시장 시세'), false);
   assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
   assert.match(html, /market-sidebar\.js\?v=20261125-market-title-clean-v1/);
-  assert.match(html, /widget-dock\.js\?v=20261125-widget-state-persist-v2/);
+  assert.match(html, /widget-dock\.js\?v=20261127-sector-oneline-plugin-news-v1/);
   secondDom.window.close();
+});
+
+test('plugin add puts the industry widget in the center and keeps the News screen', () => {
+  const dom = new JSDOM('<aside id="leftMarketSidebar"><div class="flex-1 overflow-y-auto"><div id="marketIndustryWidgetSlot"><div id="marketIndustryMap"></div></div></div></aside>'
+    + '<div id="mainHeroView" class="hidden"></div><main id="mainContent" class="is-news-view"><section id="gaemiCenterNewsFeed"></section>'
+    + '<section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section></main>'
+    + '<aside id="rightPanel"><div id="rightPanelContent"></div></aside><div id="leftPluginContent"></div>',
+    { url: 'https://example.test', runScripts: 'outside-only' });
+  const w = dom.window;
+  w.setInterval = () => 0;
+  w.fetch = async () => ({ ok: false });
+  // An older session saved the industry widget in the left sidebar.
+  w.localStorage.setItem('gaemiGTP_widget_placements_v1', JSON.stringify({ industry: 'left' }));
+  w.localStorage.setItem('gaemiGTP_central_widget_dock_v1', JSON.stringify([]));
+  let switchedToChat = false;
+  let showedNews = 0;
+  w.enterChatWorkspace = () => { switchedToChat = true; };
+  w.GaemiCenterNews = { showNews: () => { showedNews += 1; } };
+  w.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
+  w.eval(readFileSync('frontend/widgets/industry/industry-widget.js', 'utf8'));
+  w.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
+  w.eval(readFileSync('frontend/shell/left-plugin-sidebar/plugin-sidebar.js', 'utf8'));
+  w.GaemiGTPWidgetDock.initialize();
+  w.GaemiGTPWidgetDock.remove('industry');
+  w.GaemiGTPPluginSidebar.initialize();
+  w.document.querySelector('[data-plugin-widget-id="industry"]').click();
+  const card = w.document.querySelector('[data-central-widget-id="industry"]');
+  assert.ok(card);
+  assert.equal(card.parentElement.id, 'centralWidgetDockBody');
+  assert.equal(w.GaemiGTPWidgetDock.getPlacement('industry'), 'center');
+  assert.equal(switchedToChat, false);
+  assert.equal(showedNews, 1);
 });

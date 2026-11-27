@@ -547,3 +547,46 @@
   border: 0;
   box-shadow: none;
 }
+
+/* One-line sector heading, e.g. "반도체 +4.23%", in every panel width. */
+#marketIndustryMap .industry-map-sector,
+#marketIndustryMap .industry-map-row .industry-map-sector {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 6px;
+}
+#marketIndustryMap .industry-map-sector-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 13px;
+}
+#marketIndustryMap .industry-map-sector-change {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+/* Give the one-line heading a little more room than each stock tile. */
+#marketIndustryMap { container-type: inline-size; }
+#marketIndustryMap .industry-map-row,
+#marketIndustryMap.industry-map-list .industry-map-row {
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+}
+/* Sidebar widths: slightly smaller heading text keeps long names on one line. */
+@container (max-width: 520px) {
+  #marketIndustryMap .industry-map-sector,
+  #marketIndustryMap .industry-map-row .industry-map-sector { gap: 4px; padding: 4px; }
+  #marketIndustryMap .industry-map-sector-name,
+  #marketIndustryMap .industry-map-sector-change { font-size: 12px; }
+}
+/* Only a very narrow map falls back to two lines instead of cutting names. */
+@container (max-width: 380px) {
+  #marketIndustryMap .industry-map-sector,
+  #marketIndustryMap .industry-map-row .industry-map-sector {
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 3px;
+  }
+}

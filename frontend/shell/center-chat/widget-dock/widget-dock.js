@@ -795,7 +795,9 @@
   function add(id) {
     if (id === 'chart' || !catalog()[id] || activeIds.includes(id)) return false;
     activeIds.push(id);
-    if (!placements.has(id)) placements.set(id, 'center');
+    // A newly added widget always starts in the center, even if an older
+    // session left a saved sidebar position for it.
+    placements.set(id, 'center');
     savePlacements();
     saveState();
     if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
