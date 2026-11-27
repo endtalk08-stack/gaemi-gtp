@@ -20,20 +20,17 @@ function cleanItem(raw) {
     const lines = Array.isArray(raw.lines) ? raw.lines.map(l => text(l, 220)).filter(Boolean) : [];
     const headline = text(raw.headline_keyword, 30);
     if (keywords.length !== 3 || lines.length !== 3 || !keywords.includes(headline)) return null;
+    item.type = raw.type === 'news' ? 'news' : 'reason';
     item.headline_keyword = headline;
+    // AI-written article title; runs before this field existed fall back on the client.
+    item.headline = text(raw.headline, 80) || text(raw.news_headline, 80);
+    if (item.type === 'news' && !item.headline) return null;
     item.keywords = keywords;
     item.lines = lines;
-    item.confidence = raw.confidence === 'high' ? 'high' : 'low';
-    item.sources = (Array.isArray(raw.sources) ? raw.sources : []).slice(0, 6).map(source => {
-      let url = '';
-      try {
-        const parsed = new URL(String(source?.url || ''));
-        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') url = parsed.href;
-      } catch (_) {}
-      return { title: text(source?.title, 200), source: text(source?.source, 80),
-               published_at: text(source?.published_at, 40), url };
-    }).filter(source => source.title && source.url);
+    // Source articles stay in R2 for checking; the site publishes its own article only.
   }
+  const industry = text(raw.industry, 40);
+  if (industry) item.industry = industry;
   return item;
 }
 
@@ -58,8 +55,9 @@ export async function onRequestGet({ env }) {
     const items = data.items.map(cleanItem).filter(Boolean);
     return Response.json({
       ok: true, exchange_day: text(data.exchange_day, 10) || null,
-      generated_at: text(data.generated_at, 40) || null, items
-    }, { headers: { 'Cache-Control': 'public, max-age=300, s-maxage=300' } });
+      generated_at: text(data.generated_at, 40) || null,
+      complete: data.complete !== false, items
+    }, { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=60' } });
   } catch (_) {
     return Response.json({ ok: false, error: 'invalid_analysis_snapshot', items: [] }, { status: 502 });
   }

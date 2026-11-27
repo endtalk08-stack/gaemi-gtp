@@ -609,7 +609,7 @@
       draggedRow = null;
     });
 
-    // Daily AI analysis: "✦ 장기 공급계약 확대" on the third line of each TOP20 row.
+    // 개미지티피 article title on the third line of each TOP20 row (no icon).
     const applyAiHeadlines = () => {
       const loader = window.GaemiGTPUsNewsAi;
       if (!loader || !list || market !== 'us' || tab !== 'value') return;
@@ -619,7 +619,7 @@
           const issue = button.querySelector('[data-stock-issue]');
           const item = bySymbol.get(button.dataset.stockSymbol);
           if (!issue || item?.status !== 'ok') return;
-          issue.textContent = '✦ ' + item.headline_keyword;
+          issue.textContent = item.headline || item.headline_keyword;
           issue.title = item.lines?.[0] || '';
         });
       });
