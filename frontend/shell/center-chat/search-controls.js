@@ -43,27 +43,21 @@
     window.GaemiGTPWorkspaceShellState?.apply?.();
   }
 
-  // Kiwoom US instruments (name, ticker, exchange) from the R2 snapshot.
-  let usInstrumentsPromise = null;
-  function loadUsInstruments() {
-    if (!usInstrumentsPromise) {
-      usInstrumentsPromise = fetch('/stocks/us/instruments.json', { cache: 'default' })
-        .then(response => (response.ok ? response.json() : null))
-        .then(data => (Array.isArray(data?.items) ? data.items : []).filter(item =>
-          typeof item?.symbol === 'string' && /^[A-Z0-9.\-]{1,20}$/.test(item.symbol)
-          && typeof item?.name === 'string' && item.name.trim()))
-        .catch(() => [])
-        .then(items => {
-          if (!items.length) usInstrumentsPromise = null;   // retry on the next search
-          return items;
-        });
-    }
-    return usInstrumentsPromise;
+  // The same Kiwoom TOP20 list the left trading-value sidebar shows.
+  const US_TRADING_VALUE_URL = 'https://quotes.gaemigtp.com/market/trading-value?market=us';
+
+  function loadUsTradingValue() {
+    return fetch(US_TRADING_VALUE_URL, { cache: 'no-store' })
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => (data?.ok === true && Array.isArray(data.items) ? data.items : []).filter(item =>
+        typeof item?.symbol === 'string' && /^[A-Z0-9.\-]{1,20}$/.test(item.symbol)
+        && typeof item?.name === 'string' && item.name.trim()))
+      .catch(() => []);
   }
 
   const compactName = value => String(value || '').toLowerCase().replace(/\s+/g, '');
 
-  function findUsInstrument(items, ...queries) {
+  function findUsStock(items, ...queries) {
     for (const query of queries.map(compactName).filter(Boolean)) {
       const exact = items.find(item => compactName(item.symbol) === query || compactName(item.name) === query);
       if (exact) return exact;
@@ -73,16 +67,21 @@
     return null;
   }
 
-  // Build exactly what a click on the trading-value sidebar row sends.
-  function usValueSelection(instrument) {
+  // Build what a click on the trading-value sidebar row sends.
+  function usValueSelection(item, index) {
     const row = [...document.querySelectorAll('button[data-stock-symbol]')]
-      .find(button => button.dataset.stockSymbol === instrument.symbol);
-    const number = value => (value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null);
+      .find(button => button.dataset.stockSymbol === item.symbol);
+    const number = value => (value !== undefined && value !== null && value !== ''
+      && Number.isFinite(Number(value)) ? Number(value) : null);
     return {
-      market: 'us', menu: 'value', name: instrument.name, symbol: instrument.symbol,
-      industry: instrument.industry || null,
-      price: number(row?.dataset.currentPrice),
-      change_pct: number(row?.dataset.currentChangePct),
+      market: 'us', menu: 'value', name: item.name, symbol: item.symbol,
+      rank: item.rank || index + 1,
+      display_rank: item.rank || index + 1,
+      sort: 'source',
+      industry: item.industry,
+      price: number(row?.dataset.currentPrice) ?? number(item.price),
+      change_pct: number(row?.dataset.currentChangePct) ?? number(item.change_pct),
+      trading_value: item.trading_value, trading_value_text: item.trading_value_text,
       currency: 'USD', source: 'kiwoom'
     };
   }
@@ -103,14 +102,14 @@
       return;
     }
     // A typed US stock name or ticker takes the same path as a sidebar click.
-    loadUsInstruments().then(items => {
-      const instrument = findUsInstrument(items, stockName, normalizedStockName);
-      if (!instrument) {
+    loadUsTradingValue().then(items => {
+      const item = findUsStock(items, stockName, normalizedStockName);
+      if (!item) {
         window.GaemiGTPApp?.requestStock?.(normalizedStockName, null);
         return;
       }
-      window.GaemiGTPWidgetDock?.setChartSelection?.(instrument.symbol);
-      window.GaemiGTPApp?.requestStock?.(instrument.name, usValueSelection(instrument));
+      window.GaemiGTPWidgetDock?.setChartSelection?.(item.symbol);
+      window.GaemiGTPApp?.requestStock?.(item.name, usValueSelection(item, items.indexOf(item)));
     });
   }
 

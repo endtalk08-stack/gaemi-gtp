@@ -21,14 +21,7 @@ export async function onRequestGet({ env }) {
     const items = snapshot.items
       .filter(item => typeof item?.symbol === 'string' &&
         typeof item?.industry === 'string' && item.industry.trim())
-      .map(item => ({
-        symbol: item.symbol,
-        industry: item.industry.trim(),
-        // Kiwoom display name/exchange let chat resolve a typed stock name
-        // to the same selection as a sidebar click.
-        ...(typeof item.name === 'string' && item.name.trim() ? { name: item.name.trim() } : {}),
-        ...(['ND', 'NY', 'NA'].includes(item.exchange) ? { exchange: item.exchange } : {})
-      }));
+      .map(item => ({ symbol: item.symbol, industry: item.industry.trim() }));
 
     // Walmart's issuer lists WMT under All Other General Merchandise Stores.
     // https://stock.walmart.com/company-information
