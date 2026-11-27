@@ -1,1 +1,3 @@
-{"operation":"logs","unit":"gaemigtp-us-macro-news.service","lines":12}
+{
+  "operation": "status"
+}
