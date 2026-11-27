@@ -17,7 +17,14 @@ export async function proxyToDigitalOcean(request) {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     // Buffer the small JSON API payload so the origin receives a Content-Length
     // header that its HTTP/1.1 handler can read reliably.
-    init.body = await request.arrayBuffer();
+    const body = await request.arrayBuffer();
+    if (body.byteLength > 20000) {
+      return new Response(JSON.stringify({ ok: false, error: 'request_too_large' }), {
+        status: 413,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+    }
+    init.body = body;
   }
   const upstream = await fetch(target.toString(), init);
   const responseHeaders = new Headers(upstream.headers);
