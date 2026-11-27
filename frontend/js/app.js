@@ -1,5 +1,5 @@
-// Central chat analysis runs directly on the existing DigitalOcean quote API.
-const BACKEND_URL = 'https://quotes.gaemigtp.com';
+// Central chat APIs stay same-origin and proxy to the existing DigitalOcean API.
+const BACKEND_URL = window.location.origin;
     let activeAnalysisController = null;
     let activeStock = '삼성전자';
     let activeAnalysisRequestId = 0;
