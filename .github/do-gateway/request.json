@@ -1,5 +1,3 @@
 {
-  "operation": "deploy",
-  "path": "ops/do-gateway/payload_kiwoom_probe_rankpages_20261127.py",
-  "target": "backend/kiwoom_probe.py"
+  "operation": "kiwoom-verify"
 }
