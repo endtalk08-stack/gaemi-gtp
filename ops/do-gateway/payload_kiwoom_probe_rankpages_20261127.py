@@ -1,0 +1,238 @@
+"""One NVDA-only Kiwoom connection check; no mass stock lookup or orders.
+
+Check current quote plus last completed NY trading session daily close.
+No secrets or access tokens are printed or stored.
+"""
+import datetime as dt
+import json
+import ssl
+import sys
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+# The gateway executes copied probes from /run; load the existing app package explicitly.
+APP_ROOT = Path("/opt/gaemigtp-news/app")
+if str(APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(APP_ROOT))
+
+from backend.providers.kiwoom_us_quotes import (
+    KiwoomReadOnlyError, credentials_configured,
+    fetch_us_close, fetch_us_quote, fetch_us_daily_chart, issue_access_token,
+)
+
+NY = ZoneInfo("America/New_York")
+SYMBOL = "NVDA"
+EXCHANGE = "ND"
+
+
+def _last_completed_session(now=None):
+    now = now or dt.datetime.now(NY)
+    if now.tzinfo is None:
+        raise ValueError("timezone_required")
+    local = now.astimezone(NY)
+    day = local.date()
+    if local.hour < 16:
+        day -= dt.timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= dt.timedelta(days=1)
+    return day
+
+
+def _probe_trading_value_pages(max_pages=40, cap=600):
+    """Read-only: how far Kiwoom usa20540 (US stock trading-value ranking) pages.
+
+    Prints only counts, ranks and tickers. No tokens, no writes.
+    """
+    import time
+    import requests
+    from backend.providers.kiwoom_us_rankings import RANKING_ID, RANKING_REQUEST, US_RANKING_PATH
+    try:
+        token = issue_access_token()
+        seen, pages, continuation = [], [], None
+        started = time.time()
+        for page in range(1, max_pages + 1):
+            headers = {"Content-Type": "application/json;charset=UTF-8",
+                       "authorization": "Bearer " + token, "api-id": RANKING_ID}
+            if continuation:
+                headers["cont-yn"] = "Y"
+                headers["next-key"] = continuation
+            response = requests.post(US_RANKING_PATH, json=RANKING_REQUEST, headers=headers,
+                                     timeout=15, allow_redirects=False)
+            data = response.json() if response.status_code == 200 else {}
+            records = data.get("result_list") if isinstance(data, dict) else None
+            records = records if isinstance(records, list) else []
+            symbols = [str(r.get("stk_cd") or "").strip() for r in records if isinstance(r, dict)]
+            seen.extend(symbols)
+            cont = response.headers.get("cont-yn", "")
+            next_key = response.headers.get("next-key", "")
+            pages.append({"page": page, "http": response.status_code,
+                          "code": str(data.get("return_code", "")) if isinstance(data, dict) else "",
+                          "rows": len(records), "cont_yn": cont,
+                          "first": symbols[:2], "last": symbols[-2:]})
+            if cont != "Y" or not next_key or next_key == continuation or len(seen) >= cap:
+                break
+            continuation = next_key
+            time.sleep(0.3)
+        print("RANK_PAGES=" + json.dumps(pages), flush=True)
+        print("RANK_SUMMARY=" + json.dumps({
+            "total_rows": len(seen), "distinct_symbols": len(set(seen)),
+            "pages": len(pages), "seconds": round(time.time() - started, 1),
+            "stopped_because": ("cap" if len(seen) >= cap else
+                                "no_more_pages" if pages and pages[-1]["cont_yn"] != "Y" else "other"),
+        }), flush=True)
+    except Exception as exc:
+        print("RANK_PROBE_ERROR=" + type(exc).__name__ + ":" + str(exc)[:120], flush=True)
+
+
+def main():
+    if credentials_configured():
+        _probe_trading_value_pages()
+    # Market-hours-only FE diagnostic, limited to one NVDA subscription.
+    # Outside US extended-hours windows preserve the proven REST verification.
+    now_et = dt.datetime.now(NY)
+    if now_et.weekday() < 5 and dt.time(4, 0) <= now_et.time() < dt.time(20, 0):
+        print("KIWOOM_VERIFY_ROUTE=us_realtime_FE", flush=True)
+        from backend.kiwoom_fe_realtime_probe import main as run_fe_diagnostic
+        return run_fe_diagnostic()
+    print("KIWOOM_VERIFY_ROUTE=us_rest_snapshot", flush=True)
+    if not credentials_configured():
+        print("KIWOOM_VERIFY_CREDENTIALS_MISSING", flush=True)
+        return 2
+    try:
+        token = issue_access_token()
+        print("KIWOOM_VERIFY_OAUTH_OK", flush=True)
+        quote = fetch_us_quote(SYMBOL, EXCHANGE, token=token)
+        if not quote.get("current") or quote["current"] <= 0:
+            print("KIWOOM_VERIFY_NVDA_QUOTE_INVALID", flush=True)
+            return 4
+        print("KIWOOM_VERIFY_NVDA_CURRENT_OK=" + json.dumps({
+            "symbol": SYMBOL, "current": quote["current"],
+            "change_pct": quote["change_pct"],
+            "official_close": False,
+        }, ensure_ascii=False), flush=True)
+
+        day = _last_completed_session()
+        close = fetch_us_close(SYMBOL, EXCHANGE, day, token=token)
+        if close is None:
+            print("KIWOOM_VERIFY_NVDA_CLOSE_NOT_YET_AVAILABLE=" + day.isoformat(), flush=True)
+            return 5
+        print("KIWOOM_VERIFY_NVDA_CLOSE_OK=" + json.dumps({
+            "symbol": SYMBOL, "session_date": close["session_date"],
+            "close": close["close"], "change_pct": close["change_pct"],
+            "source": close["source"],
+        }, ensure_ascii=False), flush=True)
+        chart = fetch_us_daily_chart(SYMBOL, EXCHANGE, day - dt.timedelta(days=45), end_date=day, token=token, max_pages=3)
+        rows = chart.get("rows") or []
+        if not rows or not all(row.get("date") and row.get("open") and row.get("high") and row.get("low") and row.get("close") for row in rows):
+            print("KIWOOM_VERIFY_CHART_EMPTY_OR_INVALID", flush=True)
+            return 6
+        print("KIWOOM_VERIFY_CHART_OK=" + json.dumps({
+            "symbol": SYMBOL, "count": len(rows), "first_date": rows[0]["date"],
+            "last_date": rows[-1]["date"], "source": chart["source"],
+        }, ensure_ascii=False), flush=True)
+
+        # Read the existing local industry API only; do not query TOP20 or submit orders.
+        import http.client
+        cert_path = Path("/var/lib/gaemigtp-news/quotes-origin.crt")
+        industry_connection = http.client.HTTPSConnection(
+            "127.0.0.1", 443, context=ssl._create_unverified_context(), timeout=12
+        )
+        try:
+            industry_connection.connect()
+            pem = cert_path.read_text(encoding="ascii").split(
+                "-----END CERTIFICATE-----", 1
+            )[0] + "-----END CERTIFICATE-----"
+            expected_cert = ssl.PEM_cert_to_DER_cert(pem)
+            if industry_connection.sock.getpeercert(binary_form=True) != expected_cert:
+                raise ssl.SSLError("local_quote_origin_certificate_mismatch")
+            industry_connection.request(
+                "GET",
+                "/market/us-industries?include_stocks=1&view=heatmap",
+                headers={"Host": "quotes.gaemigtp.com"},
+            )
+            response = industry_connection.getresponse()
+            industry_data = json.loads(response.read().decode("utf-8"))
+            groups = industry_data.get("items", []) if isinstance(industry_data, dict) else []
+            summary = [{
+                "key": item.get("key"), "name": item.get("name"),
+                "mapping_status": item.get("mapping_status"),
+                "codes": item.get("codes") or ([item.get("code")] if item.get("code") else []),
+                "stocks_error": item.get("stocks_error"),
+                "stock_count": len(item.get("stocks", [])),
+                "stocks": [{
+                    "symbol": stock.get("symbol"),
+                    "price": stock.get("price"),
+                    "change_pct": stock.get("change_pct"),
+                    "stale": stock.get("stale"),
+                } for stock in item.get("stocks", [])[:3]],
+            } for item in groups if isinstance(item, dict)]
+            print("KIWOOM_VERIFY_INDUSTRIES=" + json.dumps({
+                "http_status": response.status,
+                "view": industry_data.get("view"),
+                "heatmap_ready": industry_data.get("heatmap_ready"),
+                "heatmap_missing": industry_data.get("heatmap_missing"),
+                "group_count": len(summary), "groups": summary,
+            }, ensure_ascii=False), flush=True)
+
+            # Read-only compare existing Kiwoom industry stock TRs for the failed categories.
+            from backend.providers.kiwoom_us_industries import fetch_us_industry_stocks
+            tr_checks = []
+            for code in ("210", "310", "510", "520", "530", "370"):
+                for sort in ("marketcap", "value", "change"):
+                    try:
+                        check = fetch_us_industry_stocks([code], sort, token=token, limit=3)
+                        tr_checks.append({
+                            "code": code, "sort": sort,
+                            "count": len(check.get("items", [])),
+                            "symbols": [row.get("symbol") for row in check.get("items", [])[:3]],
+                            "error": None,
+                        })
+                    except KiwoomReadOnlyError as tr_exc:
+                        tr_checks.append({
+                            "code": code, "sort": sort, "count": 0,
+                            "symbols": [], "error": str(tr_exc),
+                        })
+            print("KIWOOM_VERIFY_INDUSTRY_TR_COMPARE=" + json.dumps(
+                tr_checks, ensure_ascii=False
+            ), flush=True)
+
+            from backend.providers.kiwoom_us_industries import (
+                fetch_us_industry_maps, fetch_us_internet_platform_group,
+            )
+            maps = fetch_us_industry_maps(token=token)
+            heatmap = maps.get("heatmap", {})
+            print("KIWOOM_VERIFY_HEATMAP_MAP=" + json.dumps({
+                "group_count": len(heatmap.get("items", [])),
+                "mapping_complete": heatmap.get("mapping_complete"),
+                "groups": [{
+                    "key": row.get("key"), "name": row.get("name"),
+                    "codes": row.get("codes"), "mapping_status": row.get("mapping_status"),
+                    "change_pct": row.get("change_pct"),
+                } for row in heatmap.get("items", [])],
+            }, ensure_ascii=False), flush=True)
+            try:
+                platform = fetch_us_internet_platform_group()
+                print("KIWOOM_VERIFY_PLATFORM_GROUP=" + json.dumps({
+                    "available": platform is not None,
+                    "member_symbols": platform.get("member_symbols") if platform else [],
+                    "stock_symbols": [row.get("symbol") for row in platform.get("stocks", [])] if platform else [],
+                }, ensure_ascii=False), flush=True)
+            except KiwoomReadOnlyError as platform_exc:
+                print("KIWOOM_VERIFY_PLATFORM_GROUP_ERROR=" + str(platform_exc), flush=True)
+
+            if len(summary) != 11 or any(item["stock_count"] < 3 for item in summary):
+                print("KIWOOM_VERIFY_INDUSTRIES_INCOMPLETE", flush=True)
+                return 7
+        except Exception as industry_exc:
+            print("KIWOOM_VERIFY_INDUSTRIES_ERROR=" + type(industry_exc).__name__, flush=True)
+            return 8
+        finally:
+            industry_connection.close()
+        return 0
+    except KiwoomReadOnlyError as exc:
+        print("KIWOOM_VERIFY_ERROR=" + str(exc), flush=True)
+        return 3
+
+
+if __name__ == "__main__":
+    sys.exit(main())
