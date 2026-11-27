@@ -1410,7 +1410,7 @@ class Handler(BaseHTTPRequestHandler):
                 key: value for key, value in self.headers.items()
                 if key.lower() in ("content-type", "authorization", "cookie", "origin", "user-agent")
             }
-            with flask_app.test_client() as client:
+            with flask_app.test_client(use_cookies=False) as client:
                 response = client.open(self.path, method=self.command, headers=forwarded, data=body)
                 payload = response.get_json(silent=True)
                 if payload is None:
