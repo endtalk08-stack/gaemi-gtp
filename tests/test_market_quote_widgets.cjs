@@ -54,12 +54,12 @@ test('USD/KRW and gold widgets render live ticks, daily changes and intraday cha
   assert.equal(fx.querySelector('[data-market-quote-value]').textContent, '1,450.50');
   assert.equal(gold.querySelector('[data-market-quote-value]').textContent,
     (4200 * 1450.5 / 31.1034768).toLocaleString('ko-KR', { maximumFractionDigits: 0 }));
-  assert.ok(fx.querySelector('[data-market-quote-change]').textContent.includes('원'));
   assert.equal(fx.querySelector('[data-market-quote-percent]').textContent, '-0.20%');
-  assert.ok(gold.querySelector('[data-market-quote-change]').textContent.includes('원/g'));
+  assert.equal(fx.querySelector('[data-market-quote-change]'), null);
+  assert.equal(fx.querySelector('[data-market-quote-meta]'), null);
   assert.equal(gold.querySelector('[data-market-quote-percent]').textContent, '+0.90%');
-  assert.doesNotMatch(fx.querySelector('[data-market-quote-meta]').textContent, /실시간/);
-  assert.match(gold.querySelector('[data-market-quote-meta]').textContent, /국제 금 현물/);
+  assert.equal(gold.querySelector('[data-market-quote-change]'), null);
+  assert.equal(gold.querySelector('[data-market-quote-meta]'), null);
   assert.equal(fx.classList.contains('central-widget-card--qqq-muted'), false);
   assert.equal(gold.classList.contains('central-widget-card--qqq-muted'), false);
   assert.ok(fx.querySelector('.central-widget-card__sparkline'));
