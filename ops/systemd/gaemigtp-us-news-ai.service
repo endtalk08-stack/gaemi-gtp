@@ -1,0 +1,21 @@
+[Unit]
+Description=gaemiGTP daily AI move analysis for the US trading-value TOP20 (Naver news, Groq, R2)
+After=network-online.target gaemigtp-kiwoom-us-top20-https.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gaemigtp-news
+Group=gaemigtp-news
+EnvironmentFile=/etc/gaemigtp/news-worker.env
+EnvironmentFile=/var/lib/gaemigtp-news/r2.env
+Environment=PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+WorkingDirectory=/opt/gaemigtp-news/app
+ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.us_news_ai_daily
+# 20 stocks paced about one per minute for the Groq token limit.
+TimeoutStartSec=2400
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gaemigtp-news
