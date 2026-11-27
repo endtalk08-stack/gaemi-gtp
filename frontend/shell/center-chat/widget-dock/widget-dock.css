@@ -426,12 +426,18 @@
   justify-content: space-between;
   gap: 4px;
 }
-.central-widget-card--live-quote .central-widget-card__kospi-market strong,
-.central-widget-card--live-quote .central-widget-card__kospi-change {
+.central-widget-card--live-quote .central-widget-card__kospi-market strong {
   font-size: 20px;
   font-weight: 700;
   line-height: 24px;
   letter-spacing: -.4px;
+}
+.central-widget-card--live-quote .central-widget-card__kospi-change {
+  justify-content: flex-start;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 12px;
+  letter-spacing: 0;
 }
 .central-widget-card--live-quote .central-widget-card__kospi-reason {
   display: block;
