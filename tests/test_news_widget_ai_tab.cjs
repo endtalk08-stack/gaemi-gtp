@@ -136,8 +136,10 @@ test('translated US macro headlines: own category, original title, official link
   const rows = [...root.querySelectorAll('.gnw-item')];
   assert.equal(rows.length, 1);
   assert.equal(rows[0].querySelector('.gnw-title').textContent, '연준, FOMC 성명 발표');
-  assert.equal(rows[0].querySelector('.gnw-summary').textContent, '원문: Federal Reserve issues FOMC statement');
+  assert.equal(rows[0].querySelector('.gnw-summary'), null);        // list: Korean only, nothing to read twice
   rows[0].click();
+  assert.deepEqual([...root.querySelectorAll('.gnw-article-body p')].map(p => p.textContent),
+    ['원문: Federal Reserve issues FOMC statement']);                 // original only in the detail
   assert.equal(root.querySelector('.gnw-detail-source').textContent, '연준');
   assert.equal(root.querySelector('.gnw-source-link').getAttribute('href'), 'https://www.federalreserve.gov/x');
 });

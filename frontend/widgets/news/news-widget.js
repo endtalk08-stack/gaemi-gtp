@@ -72,7 +72,7 @@
           <span class="gnw-title">${escape(item.title)}</span>
         </div>
       </div>
-      <p class="gnw-summary">${escape(item.summary)}</p>
+      ${item.summary ? `<p class="gnw-summary">${escape(item.summary)}</p>` : ''}
     </button>`;
   }
   // ---- 분석 tab: 개미지티피 articles on the daily US TOP20, shown like any news ----
