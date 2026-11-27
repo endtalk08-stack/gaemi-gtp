@@ -1,6 +1,3 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_kiwoom_probe_restored_20261127.py",
-  "request_id": "probe-restored-check1-20261127",
-  "timeout": 60
+  "operation": "status"
 }
