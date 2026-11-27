@@ -83,6 +83,10 @@ def install_private_access(app, frontend_dir):
             return None
         if request.path == "/health" or request.path.startswith("/dev-access/"):
             return None
+        # The relay route authenticates each request with its own Ed25519 signature.
+        # Do not require browser preview cookies for the dedicated DO sender.
+        if request.method == "POST" and request.path == "/internal/market/us-price-push":
+            return None
         if _authorized():
             return None
         if request.path in {"/", "/index.html"}:

@@ -535,6 +535,7 @@ def get_us_etf_symbols():
 ADDRESS = "127.0.0.1"
 PORT = 8765
 ALLOWED_ORIGINS = {
+    "https://gaemi-gtp.onrender.com",
     "https://gaemigtp.com",
     "https://www.gaemigtp.com",
     "https://gaemigtp-news.pages.dev",
@@ -1007,41 +1008,6 @@ def _top20_snapshot():
     return _feed_snapshot(_TOP20_QUOTES)
 
 
-def read_fresh_us_quote(symbol):
-    """Return a fresh quote already held by this DigitalOcean process."""
-    code = str(symbol or "").strip().upper()
-    if not SYMBOL.fullmatch(code):
-        return None
-    now_ms = int(time.time() * 1000)
-    with _QQQ_LOCK:
-        quote = (_TOP20_QUOTES.get(code) or _INDUSTRY_QUOTES.get(code)
-                 or _ETF_QUOTES.get(code) or _MARKET_WIDGET_QUOTES.get(code)
-                 or (_QQQ_QUOTE if code == "QQQ" else None))
-        quote = dict(quote) if isinstance(quote, dict) else None
-    if quote is not None:
-        try:
-            received = int(quote.get("received_at_ms") or 0)
-            price = float(quote.get("price") or 0)
-        except (TypeError, ValueError, OverflowError):
-            received, price = 0, 0
-        if (0 < price < 10000000 and received <= now_ms + 5000
-                and now_ms - received <= _QQQ_STALE_MS):
-            change = quote.get("change_pct")
-            return {
-                "symbol": code, "price": price,
-                "change_pct": float(change) if type(change) in (int, float) and math.isfinite(change) else None,
-                "high": None, "low": None, "received_at_ms": received, "stale": False,
-            }
-    held = _us_close_get(code, exchange=_CLOSE_EXCHANGES.get(code))
-    if held and held.get("stale") is False:
-        return {
-            "symbol": code, "price": held.get("price"),
-            "change_pct": held.get("change_pct"), "high": None, "low": None,
-            "received_at_ms": held.get("received_at_ms"), "stale": False,
-        }
-    return None
-
-
 def _industry_snapshot():
     return _feed_snapshot(_INDUSTRY_QUOTES)
 
@@ -1345,8 +1311,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_qqq_websocket()
         if path.path == "/health":
             return self._json(200, {"ok": True, "service": "kiwoom-us-top20-api"})
-        if path.path in ("/analyze", "/api/news/issues", "/api/market/us-close"):
-            return self._dispatch_flask_app()
         if path.path == "/market/us-industry-etf-quotes":
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "items": []})
@@ -1375,51 +1339,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(503, {"ok": False, "items": [], "error": type(exc).__name__})
         self._json(200, result)
 
-
-    def do_POST(self):
-        path = urlsplit(self.path)
-        if path.path in ("/api/ai-test/chat", "/market/issue-headlines"):
-            return self._dispatch_flask_app()
-        return self._json(404, {"ok": False, "error": "not_found"})
-
-    def do_OPTIONS(self):
-        origin = self.headers.get("Origin", "")
-        if not _origin_allowed(origin):
-            return self._json(403, {"ok": False, "error": "origin_not_allowed"})
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", origin)
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        self.send_header("Access-Control-Max-Age", "600")
-        self.send_header("Vary", "Origin")
-        self.send_header("Content-Length", "0")
-        self.end_headers()
-
-    def _dispatch_flask_app(self):
-        """Run the existing Flask API routes inside the DigitalOcean API process."""
-        try:
-            length = int(self.headers.get("Content-Length", "0") or 0)
-        except (TypeError, ValueError):
-            return self._json(400, {"ok": False, "error": "invalid_content_length"})
-        if length < 0 or length > 20000:
-            return self._json(413, {"ok": False, "error": "request_too_large"})
-        body = self.rfile.read(length) if length else None
-        try:
-            from app import app as flask_app
-            forwarded = {
-                key: value for key, value in self.headers.items()
-                if key.lower() in ("content-type", "authorization", "cookie", "origin", "user-agent")
-            }
-            with flask_app.test_client(use_cookies=False) as client:
-                response = client.open(self.path, method=self.command, headers=forwarded, data=body)
-                payload = response.get_json(silent=True)
-                if payload is None:
-                    payload = {"ok": response.status_code < 400,
-                               "error": "upstream_non_json_response"}
-                return self._json(response.status_code, payload, cache_control="no-store")
-        except Exception as exc:
-            print(f"[DO Flask bridge] {type(exc).__name__}: {exc}", flush=True)
-            return self._json(503, {"ok": False, "error": "analysis_service_unavailable"}, cache_control="no-store")
 
     def _serve_qqq_websocket(self):
         if not getattr(self.server, "qqq_feed_enabled", False):
@@ -1514,12 +1433,12 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             _QQQ_WS_CLIENTS.release()
 
-    def _json(self, status, payload, cache_control=None):
+    def _json(self, status, payload):
         data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", cache_control or ("public, max-age=15" if status == 200 else "no-store"))
+        self.send_header("Cache-Control", "public, max-age=15" if status == 200 else "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         origin = self.headers.get("Origin", "")
         if _origin_allowed(origin):
@@ -1577,9 +1496,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # The HTTPS service runs as __main__; expose this same module instance under
-    # its package name so the Flask analysis engine reads the live quote caches
-    # populated by this process rather than creating a second empty module.
-    import sys
-    sys.modules.setdefault("backend.kiwoom_us_top20_api", sys.modules[__name__])
     main()

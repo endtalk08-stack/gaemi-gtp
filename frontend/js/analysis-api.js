@@ -9,7 +9,8 @@ window.GaemiGTPAnalysisAPI.fetchAnalysisFromBackend = async function(stockName, 
           params.set('menu', marketSelection.menu);
           params.set('symbol', marketSelection.symbol);
         }
-        const endpoint = BACKEND_URL;
+        const endpoint = window.location.hostname === 'gaemigtp-main.pages.dev'
+          ? window.location.origin : BACKEND_URL;
         const response = await fetch(`${endpoint}/analyze?${params}`, {
           signal, credentials: endpoint === window.location.origin ? 'same-origin' : 'omit',
           cache: 'no-store'

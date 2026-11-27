@@ -12,6 +12,7 @@ from backend.services.market_rankings import get_market_selection, analysis_tick
 from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.news_result import get_shared_stock_news_result
 from backend.services.news_freshness import issue_mode_for_question, normalize_issue_mode
+from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
 
 from backend.services.engine import analyze_stock
 
@@ -42,13 +43,48 @@ def worker_ai_test_page():
 
 @app.get("/health")
 def health():
-    """Read-only Flask bridge health; quote feed health is owned by the DO API."""
-    return jsonify({"ok": True, "service": "gaemiGTP-analysis"})
+    """Read-only process health: counts only; never reveal live prices or identities."""
+    quotes = read_memory_quotes() or []
+    fresh = sum(1 for quote in quotes if not quote["stale"])
+    return jsonify({"ok": True, "service": "gaemiGTP",
+                    "us_live_feed": {"fresh_symbols": fresh,
+                                     "cached_symbols": len(quotes),
+                                     "receiving": bool(fresh)}})
 
 @app.get("/api/market/us-close")
 def market_us_close():
     """Legacy close-summary endpoint kept inert after retiring Neon storage."""
     return jsonify({"ok": True, "available": False})
+
+
+@app.post("/internal/market/us-price-push")
+def market_us_price_push():
+    """Signed, direct DO -> Render price relay. No database writes or external calls."""
+    if (request.content_length or 0) > 6000:
+        return jsonify({"ok": False, "error": "too_large"}), 413
+    raw = request.get_data(cache=False, as_text=False)
+    ok, reason = accept_signed_quotes(
+        raw, request.headers.get("X-Gaemi-Timestamp", ""),
+        request.headers.get("X-Gaemi-Signature", ""),
+    )
+    if not ok:
+        return jsonify({"ok": False, "error": reason}), 403
+    return "", 204
+
+
+@app.get("/market/us-live-quotes")
+def market_us_live_quotes():
+    """In-memory quote feed only: never query Neon, Redis, Kiwoom or filesystem."""
+    items = read_memory_quotes()
+    if items is None:
+        response = jsonify({"ok": False, "market": "us", "items": [],
+                            "error": "waiting_for_direct_feed"})
+        response.headers["Cache-Control"] = "no-store"
+        return response, 503
+    response = jsonify({"ok": True, "market": "us", "source": "kiwoom-direct",
+                        "items": items})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.post("/market/issue-headlines")

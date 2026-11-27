@@ -95,7 +95,7 @@ def read_cached_news(query, display, start):
     database_url = os.getenv("NEWS_DATABASE_URL", "").strip()
     if not database_url:
         return []
-    # The API reads only. DigitalOcean owns expiry cleanup.
+    # Render reads only. DigitalOcean owns expiry cleanup.
     if os.getenv('GAEMIGTP_NEWS_WORKER') == '1':
         _start_cleanup_worker()
     try:

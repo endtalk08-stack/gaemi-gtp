@@ -1,6 +1,6 @@
-"""Read-only freshness guard shared by the central chat and market sidebar.
+"""Read-only freshness guard shared by Render chat and market sidebar.
 
-DigitalOcean owns news collection and original article-body verification. The API only filters cached snapshots
+DigitalOcean owns news collection and original article-body verification. Render only filters Neon snapshots
 using the original published_at of cited articles, never the AI/DB write time.
 """
 from copy import deepcopy

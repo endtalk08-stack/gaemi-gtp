@@ -146,7 +146,7 @@ function setup({ deferred = false, initialOrder = [], sidebarOpen = true } = {})
   const window = {
     WebSocket: MockWebSocket,
     innerWidth: 1200,
-    location: { hostname: 'gaemigtp-main.pages.dev', origin: 'https://gaemigtp-main.pages.dev' },
+    location: { hostname: 'gaemi-gtp.onrender.com', origin: 'https://gaemi-gtp.onrender.com' },
     // Fake browser: acknowledge polling without starting a background timer.
     setInterval() { return 1; },
     setTimeout() { return 1; },

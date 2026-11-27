@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from ..analysis.price import build_price_indicators, build_price_result
 from ..providers.market_price import fetch_daily_price_history
-from backend.kiwoom_us_top20_api import read_fresh_us_quote
+from .us_price_push import read_fresh_us_quote
 
 
 _SPACER = "\u00a0\u00a0\u00a0"
@@ -155,9 +155,10 @@ def fetch_stock_price_result(*, is_krw, ticker_symbol, clean_code=None):
     if is_krw:
         raise ValueError("domestic_quote_removed_use_news_disclosure_snapshot")
 
-    # Use the fresh Kiwoom FE tick held by the same DigitalOcean process as the API.
-    # Yahoo daily history remains historical indicator input only. If the FE tick
-    # is missing/stale, never mislabel yesterday's close as a live quote.
+    # Kiwoom's validated, signed US FE tick already reaches Render for the
+    # sidebar. Use exactly that same quote for the central analysis and AI.
+    # The Yahoo 2-year daily series above is historical indicator input only.
+    # If the tick is missing/stale, never mislabel yesterday's close as live.
     quote = read_fresh_us_quote(ticker_symbol)
     source = "kiwoom-direct" if quote else "kiwoom-unavailable"
     return _build_stock_price_result(
