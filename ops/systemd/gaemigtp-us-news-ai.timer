@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the US TOP20 AI move analysis at 10:30 New York time on weekdays (00:30 KST in winter)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 10:30:00 America/New_York
+Unit=gaemigtp-us-news-ai.service
+Persistent=false
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
