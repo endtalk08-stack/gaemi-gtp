@@ -37,7 +37,10 @@
     const metaNode = root.querySelector('[data-market-quote-meta]');
     const stateNode = root.querySelector('[data-market-quote-state]');
     if (!record) {
-      if (metaNode && !valueNode?.textContent?.trim()) metaNode.textContent = '시세 조회 중';
+      if (valueNode) valueNode.textContent = '—';
+      if (metaNode) metaNode.textContent = '시세 연결 확인 필요';
+      if (stateNode) stateNode.textContent = '조회 불가';
+      root.classList.add('is-market-quote-stale');
       return;
     }
     if (valueNode) valueNode.textContent = kind === 'fx'
@@ -103,8 +106,10 @@
     if (document.hidden || (!hasFx && !hasGold)) return;
     const now = Date.now();
     const jobs = [];
-    if (hasFx && (!fx || force || now - fxAttemptAt >= (fx ? FX_REFRESH_MS : RETRY_MS))) jobs.push(fetchFx());
-    if (hasGold && (!gold || force || now - goldAttemptAt >= (gold ? GOLD_REFRESH_MS : RETRY_MS))) jobs.push(fetchGold());
+    const fxDue = !fx ? (!fxAttemptAt || now - fxAttemptAt >= RETRY_MS) : now - fxAttemptAt >= FX_REFRESH_MS;
+    const goldDue = !gold ? (!goldAttemptAt || now - goldAttemptAt >= RETRY_MS) : now - goldAttemptAt >= GOLD_REFRESH_MS;
+    if (hasFx && (force || fxDue)) jobs.push(fetchFx());
+    if (hasGold && (force || goldDue)) jobs.push(fetchGold());
     await Promise.all(jobs);
   }
 
