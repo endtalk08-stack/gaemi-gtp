@@ -86,26 +86,15 @@
     const record = state[id].record;
     if (!card) return;
     const priceNode = card.querySelector('[data-market-quote-value]');
-    const changeNode = card.querySelector('[data-market-quote-change]');
     const percentNode = card.querySelector('[data-market-quote-percent]');
-    const metaNode = card.querySelector('[data-market-quote-meta]');
     const chart = card.querySelector('.central-widget-card__sparkline');
     const fresh = Boolean(record?.fresh);
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
     if (priceNode) priceNode.textContent = record
       ? format(record.price, id === 'usdkrw' ? 2 : 0)
       : '—';
-    if (changeNode || percentNode) {
+    if (percentNode) {
       const change = record?.changePct;
-      const amount = record?.changeAmount;
-      const digits = id === 'usdkrw' ? 2 : 0;
-      if (changeNode) {
-        changeNode.textContent = Number.isFinite(amount)
-          ? (amount > 0 ? '+' : amount < 0 ? '-' : '') + format(Math.abs(amount), digits) + (id === 'usdkrw' ? '원' : '원/g')
-          : '—';
-        changeNode.classList.toggle('central-widget-card__kospi-change--up', fresh && amount > 0);
-        changeNode.classList.toggle('central-widget-card__kospi-change--down', fresh && amount < 0);
-      }
       if (percentNode) {
         percentNode.textContent = Number.isFinite(change)
           ? (change > 0 ? '+' : '') + change.toFixed(2) + '%'
@@ -114,10 +103,6 @@
         percentNode.classList.toggle('central-widget-card__kospi-change--down', fresh && change < 0);
       }
     }
-    if (metaNode) metaNode.textContent = record
-      ? (fresh ? '' : '장 마감/지연 · ') + (id === 'usdkrw' ? 'USD/KRW' : '국제 금 현물 · 원화/g')
-        + (record.time ? ' · ' + formatTime(record.time) : '')
-      : '시세 연결 중';
     chart?.classList.toggle('central-widget-card__sparkline--up', fresh && record?.changePct > 0);
     chart?.classList.toggle('central-widget-card__sparkline--down', fresh && record?.changePct < 0);
     draw(card, state[id].points);
