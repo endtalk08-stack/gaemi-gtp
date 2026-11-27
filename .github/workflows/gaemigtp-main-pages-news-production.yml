@@ -20,12 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy_production:
-        description: 'Deploy to production after preview verification'
-        required: true
-        type: boolean
-        default: false
-      confirm_access_protected_preview:
-        description: 'I manually inspected the Access-protected preview for this same commit'
+        description: 'Deploy this main commit to production (pushes to main deploy automatically)'
         required: true
         type: boolean
         default: false
@@ -184,15 +179,21 @@ jobs:
         run: |
           echo "[Open the Pages preview]($DEPLOYMENT_URL)" >> "$GITHUB_STEP_SUMMARY"
           if [ "$ACCESS_PROTECTED" = "true" ]; then
-            echo "Preview deployed, but automated checks were blocked by Cloudflare Access." >> "$GITHUB_STEP_SUMMARY"
-            printf '\nBefore production, open the preview URL above and check the page, news panel, market widgets, and chart data. Then run this workflow manually with both production confirmation and the same-commit preview inspection confirmation enabled.\n' >> "$GITHUB_STEP_SUMMARY"
+            echo "Preview deployed, but automated checks were blocked by Cloudflare Access (open it while signed in)." >> "$GITHUB_STEP_SUMMARY"
+            echo "On main, production still deploys and is then verified byte-for-byte against the live site." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Verified: frontend assets, Pages Functions, instrument metadata, and R2-backed NVDA daily chart." >> "$GITHUB_STEP_SUMMARY"
           fi
 
   production:
     needs: preview
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_production && (needs.preview.outputs.verified == 'true' || (needs.preview.outputs.access_protected == 'true' && inputs.confirm_access_protected_preview))
+    # A push to main deploys automatically, as before 2026-11-27. The manual
+    # run remains available for redeploying main. Every production deploy is
+    # verified byte-for-byte and through Pages Functions below.
+    if: >-
+      github.ref == 'refs/heads/main' && (
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.deploy_production))
     runs-on: ubuntu-latest
     environment: production
     concurrency:
