@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/read_kiwoom_probe_source_20261127.py",
+  "request_id": "readprobesrc1_20261127",
+  "timeout": 60
 }
