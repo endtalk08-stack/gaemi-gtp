@@ -538,7 +538,7 @@ def _refresh_us_live_chat_quote(stock, selection, context):
         return context
     from .engine import TICKERS
     from .market_rankings import analysis_ticker_for_selection
-    from .us_price_push import read_fresh_us_quote
+    from backend.kiwoom_us_top20_api import read_fresh_us_quote
 
     ticker = (analysis_ticker_for_selection(selection)
               if selection and selection.get("market") == "us" else None)
