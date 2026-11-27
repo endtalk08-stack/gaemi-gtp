@@ -7,8 +7,10 @@
       if (!text) return false;
       if (!newConversation && ctx.getPendingQuestionSessionId() === ctx.getSession()?.id) return false;
       const appMode = window.GaemiGTPAppState?.getCurrentAppMode?.() || 'gaemi';
-      const stockOnly = appMode === 'gaemi'
-        ? window.GaemiGTPCenterChatSearch?.resolveStockInputOnly?.(text) : '';
+      const stockSearch = window.GaemiGTPCenterChatSearch;
+      const isQuestion = stockSearch?.isQuestionInput?.(text) ?? true;
+      const stockOnly = appMode === 'gaemi' && !isQuestion
+        ? (stockSearch?.resolveStockInputOnly?.(text) || stockSearch?.resolveStockSearchInput?.(text)) : '';
       if (stockOnly && typeof window.GaemiGTPApp?.requestStock === 'function') {
         window.GaemiGTPApp.requestStock(stockOnly);
         return true;
