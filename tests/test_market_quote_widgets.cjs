@@ -47,7 +47,7 @@ test('USD/KRW and gold plugins render real source data with explicit freshness l
   assert.equal(gold.classList.contains('is-market-quote-stale'), false);
   assert.ok(fx.classList.contains('central-widget-card--kospi'));
   assert.ok(gold.classList.contains('central-widget-card--kospi'));
-  assert.equal(fx.querySelector('.central-widget-card__kospi-title').textContent.replace(/\\s+/g, ' ').trim(), 'USD/KRW원/달러');
+  assert.equal(fx.querySelector('.central-widget-card__kospi-title').textContent.replace(/\s+/g, ' ').trim(), 'USD/KRW원/달러');
   assert.equal(requested.length, 2);
   assert.ok(requested.some(url => url.includes('/v2/rate/usd/krw')));
   assert.ok(requested.some(url => url.includes('/api/v1/spot?currency=KRW&unit=gram&compact=1')));
