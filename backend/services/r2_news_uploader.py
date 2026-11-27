@@ -179,7 +179,7 @@ def read_daily_chart(symbol: str):
 def upload_file(path: Path, *, object_key: str) -> bool:
     # Unified news-page snapshots are retired; publish only scoped stock/news objects.
     if object_key != 'stocks/us/instruments.json' and not re.fullmatch(
-        r"(?:news/macro/us/feed|news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}|charts/us/[A-Z][A-Z0-9.-]{0,14}/daily|news/archive/[0-9]{8}/[0-9a-f]{64})\.json", object_key
+        r"(?:news/(?:stocks|ai)/us/[A-Z][A-Z0-9.-]{0,14}|charts/us/[A-Z][A-Z0-9.-]{0,14}/daily|news/archive/[0-9]{8}/[0-9a-f]{64})\.json", object_key
     ):
         raise ValueError("invalid_r2_news_object_key")
     access_key = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
