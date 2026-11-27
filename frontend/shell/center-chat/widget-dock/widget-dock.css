@@ -404,13 +404,16 @@
   font-weight: 500;
 }
 .central-widget-card--live-quote .central-widget-card__kospi-body {
+  display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
   gap: 8px;
 }
 .central-widget-card--live-quote .central-widget-card__sparkline {
   display: block;
   grid-column: 1;
   grid-row: 1;
+  align-self: center;
   width: 54px;
   height: 28px;
 }
@@ -420,12 +423,19 @@
   min-width: 0;
 }
 .central-widget-card--live-quote .central-widget-card__kospi-market {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: start;
   justify-content: center;
   gap: 2px;
   white-space: nowrap;
+}
+.central-widget-card--live-quote .central-widget-card--live-quote__price {
+  grid-row: 1;
+}
+.central-widget-card--live-quote .central-widget-card__kospi-market > [data-market-quote-percent] {
+  grid-row: 2;
 }
 .central-widget-card--live-quote .central-widget-card__kospi-market strong {
   font-size: 18px;
