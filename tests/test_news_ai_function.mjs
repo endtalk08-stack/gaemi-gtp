@@ -57,6 +57,7 @@ test('macro headlines: keeps translated https items only and fixes the category'
   } } });
   const body = await (await macro({ env: env({ ok: true, generated_at: 'g', items: [
     { id: '0123456789abcdef', title: '연준, FOMC 성명 발표', title_en: 'FOMC statement', source: '연준',
+      summary: '연준은 금리를 동결했어요.',
       category: '연준·금리', url: 'https://www.federalreserve.gov/x', published_at: '2026-11-27T19:00:00Z' },
     { id: '1123456789abcdef', title: '', url: 'https://a.example', published_at: '2026-11-27T19:00:00Z' },
     { id: '2123456789abcdef', title: '링크 없음', url: 'javascript:alert(1)', published_at: '2026-11-27T19:00:00Z' },
@@ -65,5 +66,7 @@ test('macro headlines: keeps translated https items only and fixes the category'
   ] }) })).json();
   assert.deepEqual(body.items.map(i => [i.id, i.category]),
     [['macro:0123456789abcdef', '연준·금리'], ['macro:3123456789abcdef', '정책·규제']]);
+  assert.equal(body.items[0].summary, '연준은 금리를 동결했어요.');
+  assert.equal(body.items[1].summary, '');
   assert.deepEqual(await (await macro({ env: env(null) })).json(), { ok: true, generated_at: null, items: [] });
 });
