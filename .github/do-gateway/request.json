@@ -1,5 +1,6 @@
 {
-  "operation": "deploy",
-  "path": "ops/do-gateway/payload_kiwoom_probe_original_20261127.py",
-  "target": "backend/kiwoom_probe.py"
+  "operation": "run",
+  "path": "ops/do-gateway/check_kiwoom_probe_restored_20261127.py",
+  "request_id": "probe-restored-check1-20261127",
+  "timeout": 60
 }
