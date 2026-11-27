@@ -25,6 +25,38 @@
     return pending;
   }
 
+  // One-sentence company intros (관련 종목 in news details), shared by every news item.
+  const INTRO_ENDPOINT = '/news/ai/us/profiles';
+  const INTRO_TTL = 600000;
+  let intros = new Map();
+  let introsAt = 0;
+  let introsPending = null;
+  function loadIntros() {
+    if (introsAt && Date.now() - introsAt < INTRO_TTL) return Promise.resolve(intros);
+    if (introsPending) return introsPending;
+    introsPending = fetch(INTRO_ENDPOINT, { cache: 'no-store' })
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => {
+        if (data?.ok === true && data.items && typeof data.items === 'object') {
+          intros = new Map(Object.entries(data.items).filter(([, text]) => typeof text === 'string' && text));
+          introsAt = Date.now();
+          window.dispatchEvent(new CustomEvent('gaemi:us-company-intros'));
+        }
+        return intros;
+      })
+      .catch(() => intros)
+      .finally(() => { introsPending = null; });
+    return introsPending;
+  }
+  // "$NVDA" or "NVDA" -> saved intro; an article's own third line covers runs before the file existed.
+  function introFor(ticker) {
+    const symbol = String(ticker || '').trim().replace(/^\$/, '').toUpperCase();
+    if (!symbol) return '';
+    if (intros.has(symbol)) return intros.get(symbol);
+    const item = (snapshot?.items || []).find(x => x.symbol === symbol && x.status === 'ok');
+    return item?.lines?.[2] || '';
+  }
+
   function bySymbol() {
     return new Map((snapshot?.items || []).map(item => [item.symbol, item]));
   }
@@ -54,10 +86,12 @@
   }
 
   // Shape a published analysis like any other news item for the existing widget views.
+  // The third line (company intro) is shown under 관련 종목 instead, as for every news item.
   function asNewsItem(item) {
+    const story = item.lines.slice(0, 2);
     return {
       id: 'ai:' + item.symbol, category: '분석', title: titleText(item),
-      summary: item.lines.join('\n'), body: item.lines.join('\n\n'),
+      summary: story.join('\n'), body: story.join('\n\n'),
       source: '개미지티피', published_at: item.generated_at || snapshot?.generated_at || '', time: '',
       url: '', tickers: ['$' + item.symbol], issues: item.keywords.map(k => '#' + k),
       industries: item.industry ? [item.industry] : [], ai: item
@@ -68,5 +102,6 @@
     return (snapshot?.items || []).filter(item => item.status === 'ok').map(asNewsItem);
   }
 
-  window.GaemiGTPUsNewsAi = { load, bySymbol, get: () => snapshot, moveText, withParticle, titleText, newsItems };
+  window.GaemiGTPUsNewsAi = { load, bySymbol, get: () => snapshot, moveText, withParticle, titleText, newsItems,
+    loadIntros, introFor };
 }());

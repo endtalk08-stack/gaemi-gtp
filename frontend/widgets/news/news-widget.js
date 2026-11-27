@@ -159,12 +159,13 @@
       : (item.summary ? `<div class="gnw-article-body"><p>${escape(item.summary)}</p></div>` : '');
     const stockRows=(item.tickers||[]).map(ticker=>{
       const active=favoriteTickers.has(ticker);
-      return `<div class="gnw-stock-item">
+      const intro=ai()?.introFor?.(ticker) || '';
+      return `<div class="gnw-stock-entry"><div class="gnw-stock-item">
         <span class="gnw-stock-name">${escape(ticker)}</span>
         <button type="button" class="gnw-favorite${active?' is-active':''}" data-gnw-favorite="${escape(ticker)}" aria-label="${escape(ticker)} 관심종목" aria-pressed="${active?'true':'false'}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
         </button>
-      </div>`;
+      </div>${intro ? `<p class="gnw-stock-intro">${escape(intro)}</p>` : ''}</div>`;
     }).join('');
     host.innerHTML=`
       <button type="button" class="gnw-back" data-gnw-back aria-label="뉴스 목록으로 돌아가기">←</button>
@@ -187,7 +188,9 @@
     if(!host)return;
     if(detailId !== null)renderDetail(host);else renderList(host);
   }
-  function mount() { render(); refreshAi(); syncAiRefresh(); }
+  function mount() { render(); refreshAi(); syncAiRefresh(); ai()?.loadIntros?.(); }
+  // Intros arrive after the first paint; refresh an open detail view.
+  window.addEventListener('gaemi:us-company-intros',()=>{ if(detailId !== null) render(); });
   function setItems(raw) {
     items=(Array.isArray(raw)?raw:[]).map(normalize).filter(Boolean).sort((a,b)=>(Date.parse(b.published_at)||0)-(Date.parse(a.published_at)||0));
     detailId=null;selected='전체';query='';visible=Number.MAX_SAFE_INTEGER;render();

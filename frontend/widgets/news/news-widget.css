@@ -70,6 +70,8 @@
 .gnw-chips { display:flex; flex-wrap:wrap; gap:8px; }
 .gnw-chip { display:inline-flex; align-items:center; min-height:42px; padding:8px 12px; background:var(--gtp-surface); color:var(--gtp-text); font-size:15px; line-height:20px; font-weight:400; border:0; border-radius:0; }
 .gnw-stock-list { display:flex; flex-direction:column; gap:8px; }
+.gnw-stock-entry { display:flex; flex-direction:column; background:var(--gtp-surface); }
+.gnw-stock-intro { margin:0; padding:0 12px 10px; color:var(--gtp-muted); font-size:14px; line-height:20px; overflow-wrap:anywhere; }
 .gnw-stock-item { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:48px; padding:8px 12px; background:var(--gtp-surface); }
 .gnw-stock-name { min-width:0; color:var(--gtp-text); font-size:15px; line-height:20px; font-weight:500; overflow-wrap:anywhere; }
 .gnw-favorite { display:flex; align-items:center; justify-content:center; flex:0 0 32px; width:32px; height:32px; padding:5px; border:0; background:transparent; color:var(--gtp-muted); cursor:pointer; }

@@ -11,6 +11,11 @@ For each TOP20 stock:
 R2 objects (allowed by the existing uploader):
   news/ai/us/{SYMBOL}.json   one stock
   news/ai/us/TOP20.json      the whole list in ranking order, for the widget
+  news/ai/us/PROFILES.json   one-sentence company intros, shown under 관련 종목
+
+Company intros are written by the model once, the first time a stock is analysed,
+and reused verbatim afterwards. A sentence in backend/data/us/company_intros.json
+(edited by hand) always wins and is never overwritten.
 
 Numbers (price, change) always come from the Kiwoom quote service, never from
 the model. One run per US day is reserved in a local state file BEFORE any paid
@@ -42,6 +47,8 @@ SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
 MAX_ARTICLES = 6
 BODY_CHARS = 1200
 PACE_SECONDS = 300           # one article every 5 minutes (also far below Groq limits)
+PROFILES_KEY = "news/ai/us/PROFILES.json"
+MANUAL_INTROS_PATH = Path(__file__).resolve().parent / "data" / "us" / "company_intros.json"
 NO_NEWS_LINE = "뚜렷한 이유가 담긴 뉴스는 확인되지 않았어요."
 
 SYSTEM_PROMPT = """너는 미국 주식 뉴스를 한국 개인투자자에게 쉽게 설명하는 분석가야.
@@ -69,7 +76,8 @@ SYSTEM_PROMPT = """너는 미국 주식 뉴스를 한국 개인투자자에게 �
    type이 "news"이면
    - lines[0]: 가장 중요한 소식 ("~한다는 소식이 있어요" 형태)
    - lines[1]: 그 소식의 배경이나 의미
-   - lines[2]: 회사 소개 (두 type 모두 같음. company_profile이 있으면 그대로, 없으면 무슨 회사인지 1문장)
+   - lines[2]: 회사 소개 (두 type 모두 같음. company_profile이 있으면 그대로, 없으면 무슨 회사인지 1문장.
+     종목명·티커·업종에 맞는 회사인지 확인하고, 확실하지 않은 사업 내용은 쓰지 말고 업종 수준으로만 써.)
    headline: 기사 제목 한 줄. "회사명, 핵심 내용" 형태로 회사명은 한 번만, 35자 이내.
    reason이면 원인을, news면 소식을 담아. 숫자·퍼센트는 쓰지 말고, "주가 상승"이나 "~에 하락"처럼
    주가가 움직였다는 표현으로 끝내지 마.
@@ -270,6 +278,8 @@ def build_user_message(stock, articles, company_profile=None):
     change = stock.get("change_pct")
     direction = "상승" if change and change > 0 else "하락" if change and change < 0 else "보합"
     lines = [f"종목: {stock['name']} ({stock['symbol']})", f"오늘 움직임: {direction}"]
+    if stock.get("industry"):
+        lines.append("업종: " + stock["industry"])
     if company_profile:
         lines.append("company_profile: " + company_profile)
     lines += ["", "기사:"]
@@ -404,6 +414,38 @@ def upload_json(payload, object_key, uploader=None):
             path.unlink(missing_ok=True)
 
 
+# ---------------------------------------------------------------- intros --
+
+def read_manual_intros(path=MANUAL_INTROS_PATH):
+    """Hand-edited intros {SYMBOL: sentence}; missing or broken file means none."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {symbol: text.strip() for symbol, text in data.items()
+            if isinstance(symbol, str) and SYMBOL.fullmatch(symbol)
+            and isinstance(text, str) and 5 <= len(text.strip()) <= 160}
+
+
+def intro_map(ai_profiles, manual):
+    """Hand-edited sentences win over model-written ones."""
+    merged = {symbol: text for symbol, text in (ai_profiles or {}).items()
+              if isinstance(text, str) and text.strip()}
+    merged.update(manual)
+    return merged
+
+
+def publish_profiles(ai_profiles, manual, now, upload=None):
+    upload = upload or upload_json
+    items = {}
+    for symbol, text in sorted(intro_map(ai_profiles, manual).items()):
+        items[symbol] = {"intro": text, "source": "manual" if symbol in manual else "ai"}
+    upload({"ok": True, "generated_at": now.isoformat(), "items": items}, PROFILES_KEY)
+    return len(items)
+
+
 def analyze_stock(stock, profiles, *, fetch=None, reader=None, groq=call_groq, now=None):
     """Returns (status, result, articles, tokens, diagnostics)."""
     if fetch is None:
@@ -432,7 +474,8 @@ def analyze_stock(stock, profiles, *, fetch=None, reader=None, groq=call_groq, n
 
 
 def run(now=None, *, top20=read_top20, analyze=analyze_stock, upload=upload_json,
-        state_path=STATE_PATH, sleeper=time.sleep, force=False, clock=None):
+        state_path=STATE_PATH, sleeper=time.sleep, force=False, clock=None,
+        read_manual=read_manual_intros, manual_path=MANUAL_INTROS_PATH):
     now = now or dt.datetime.now(dt.timezone.utc)
     day = us_trading_day(now)
     if day is None:
@@ -449,7 +492,17 @@ def run(now=None, *, top20=read_top20, analyze=analyze_stock, upload=upload_json
     state["last_day"] = day.isoformat()
     state.setdefault("profiles", {})
     write_state(state, state_path)
+    manual = read_manual(manual_path)
     items, counts = [], {}
+
+    def publish_intros():
+        try:
+            publish_profiles(state["profiles"], manual, clock() if clock else now, upload=upload)
+        except Exception as exc:
+            print("[us-news-ai] profiles_upload_error=" + type(exc).__name__, flush=True)
+
+    # Hand edits reach the site on the next run even if no new stock appears.
+    publish_intros()
 
     def publish_list(done):
         upload({"ok": True, "market": "US", "exchange_day": day.isoformat(),
@@ -461,15 +514,18 @@ def run(now=None, *, top20=read_top20, analyze=analyze_stock, upload=upload_json
             sleeper(PACE_SECONDS)
         stock_time = clock() if clock else now
         try:
-            status, result, articles, tokens, diagnostics = analyze(stock, state["profiles"])
+            status, result, articles, tokens, diagnostics = analyze(stock, intro_map(state["profiles"], manual))
         except Exception as exc:
             print("[us-news-ai] %s error=%s" % (stock["symbol"], type(exc).__name__), flush=True)
             status, result, articles, tokens, diagnostics = "failed", None, [], None, None
         payload = stock_payload(stock, day, stock_time, status=status, result=result, articles=articles,
                                 tokens=tokens, diagnostics=diagnostics)
         if status == "ok":
+            new_intro = stock["symbol"] not in state["profiles"] and stock["symbol"] not in manual
             state["profiles"].setdefault(stock["symbol"], payload["lines"][2])
             write_state(state, state_path)
+            if new_intro:
+                publish_intros()
             try:
                 upload(payload, f"news/ai/us/{stock['symbol']}.json")
             except Exception as exc:
@@ -493,6 +549,12 @@ def main():
     if app_root not in sys.path:
         sys.path.insert(0, app_root)
     try:
+        if "--publish-profiles" in sys.argv[1:]:
+            # No AI call: republish the saved intros (after a hand edit).
+            count = publish_profiles(read_state(STATE_PATH).get("profiles") or {},
+                                     read_manual_intros(), dt.datetime.now(dt.timezone.utc))
+            print("[us-news-ai] profiles_published=%d" % count, flush=True)
+            return 0
         run(force="--force" in sys.argv[1:], clock=lambda: dt.datetime.now(dt.timezone.utc))
     except Exception as exc:
         print("[us-news-ai] failed=" + type(exc).__name__, flush=True)
