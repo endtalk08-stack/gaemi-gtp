@@ -3,6 +3,34 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { JSDOM } = require('jsdom');
 
+
+test('the Plugin sidebar adds a daily chart widget for the last selected symbol', () => {
+  const dom = new JSDOM('<aside id="leftPluginSidebar"><div id="leftPluginContent"></div></aside><main id="mainContent"><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section></main><aside id="rightPanel"><div id="rightPanelContent"></div></aside>', { url: 'https://example.test', runScripts: 'outside-only' });
+  const w = dom.window;
+  w.setInterval = () => 0;
+  w.fetch = async () => ({ ok: false, json: async () => ({ ok: false, rows: [] }) });
+  w.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
+  w.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
+  w.eval(readFileSync('frontend/shell/left-plugin-sidebar/plugin-sidebar.js', 'utf8'));
+  const dock = w.GaemiGTPWidgetDock;
+  dock.initialize();
+  dock.setChartSelection('NVDA');
+  w.GaemiGTPPluginSidebar.initialize();
+  w.GaemiGTPPluginSidebar.setOpen(true);
+  const button = w.document.querySelector('[data-plugin-widget-id="chart"]');
+  assert.ok(button, 'chart is listed in Plugins');
+  button.click();
+  assert.equal(dock.isActive('chart'), true);
+  const card = w.document.querySelector('[data-central-widget-id="chart"]');
+  assert.ok(card, 'chart widget is rendered in the workspace');
+  assert.equal(card.querySelector('[data-chart-widget-title]').textContent, 'NVDA 일봉');
+  assert.ok(card.querySelector('[data-chart-widget-target]'));
+  assert.equal(w.document.querySelector('[data-plugin-widget-id="chart"]').dataset.pluginWidgetAction, 'remove');
+  dock.remove('chart');
+  assert.equal(card.isConnected, false);
+  dom.window.close();
+});
+
 function dispatchPointer(window, target, type, x, y) {
   const event = new window.Event(type, { bubbles: true, cancelable: true });
   Object.defineProperties(event, {
