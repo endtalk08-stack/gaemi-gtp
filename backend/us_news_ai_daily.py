@@ -5,7 +5,7 @@ gaemigtp-us-news-ai.timer, one stock every five minutes in trading-value order s
 the widget receives a new article at a readable pace for live broadcasts.
 For each TOP20 stock:
 
-  Naver news -> keep only articles whose title names the company (last 72h)
+  Naver news -> keep only articles since the previous US close whose title names the company
   -> article bodies -> one Groq request (JSON schema) -> validate -> R2.
 
 R2 objects (allowed by the existing uploader):
@@ -39,7 +39,6 @@ STATE_PATH = Path("/var/lib/gaemigtp-news/us-news-ai-state.json")
 RANKING_URL = "https://127.0.0.1/market/trading-value?market=us"
 RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
-ARTICLE_WINDOW_HOURS = 72
 MAX_ARTICLES = 6
 BODY_CHARS = 1200
 PACE_SECONDS = 300           # one article every 5 minutes (also far below Groq limits)
@@ -111,6 +110,27 @@ def us_trading_day(now=None):
     except Exception:
         pass
     return day
+
+
+def _is_market_holiday(day):
+    try:
+        from backend.kiwoom_us_top20_api import _is_us_market_holiday
+        return _is_us_market_holiday(day)
+    except Exception:
+        return False
+
+
+def previous_close(now=None):
+    """16:00 New York on the last trading day before today's New York date.
+
+    Only articles published after it can explain today's move; older ones
+    (for example last quarter's earnings reaction) are left out.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    day = now.astimezone(NEW_YORK).date() - dt.timedelta(days=1)
+    while day.weekday() >= 5 or _is_market_holiday(day):
+        day -= dt.timedelta(days=1)
+    return dt.datetime.combine(day, dt.time(16), tzinfo=NEW_YORK)
 
 
 def read_state(path=STATE_PATH):
@@ -201,8 +221,9 @@ def title_names(title, term):
 
 
 def select_articles(stock, raw, now=None):
-    """Only recent articles whose title names this company, newest first."""
+    """Articles since the previous close whose title names this company, newest first."""
     now = now or dt.datetime.now(dt.timezone.utc)
+    since = previous_close(now)
     terms = title_terms(stock)
     seen, picked = set(), []
     for article in raw or []:
@@ -212,7 +233,7 @@ def select_articles(stock, raw, now=None):
         url = str(article.get("url") or article.get("originallink") or article.get("link") or "").strip()
         stamp = published_at(article)
         if (not title or not url.startswith(("https://", "http://")) or stamp is None
-                or not 0 <= (now - stamp).total_seconds() <= ARTICLE_WINDOW_HOURS * 3600
+                or not since <= stamp <= now + dt.timedelta(minutes=5)
                 or (url or title) in seen):
             continue
         if not any(title_names(title, term) for term in terms):

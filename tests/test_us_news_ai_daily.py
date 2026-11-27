@@ -41,13 +41,26 @@ class SelectArticlesTest(unittest.TestCase):
             article("[미국 특징주] 마이크론, HBM 시장서 도전 직면", 3, 1),
             article("코스피·코스닥 동반 급등…외국인 저가 매수", 1, 2),          # no company in title
             article("Micron raises outlook", 5, 3, source="Reuters"),
-            article("마이크론 옛날 기사", 100, 4),                              # older than 72h
+            article("마이크론 전날 장 마감 전 기사", 20, 4),                    # before Tuesday's close
             article("마이크론, 장기 공급계약 확대", 2, 1),                       # duplicate URL
         ]
         with patch.object(job, "title_terms", return_value={"마이크론", "micron", "mu"}):
             picked = job.select_articles(stock, raw, now=RUN_AT)
         self.assertEqual([a["title"] for a in picked],
                          ["[미국 특징주] 마이크론, HBM 시장서 도전 직면", "Micron raises outlook"])
+
+    def test_window_starts_at_the_previous_us_close(self):
+        # Wednesday 10:30 NY -> Tuesday 16:00 NY.
+        self.assertEqual(job.previous_close(RUN_AT).astimezone(UTC),
+                         dt.datetime(2026, 11, 24, 21, 0, tzinfo=UTC))
+        # Monday 10:30 NY -> Friday 16:00 NY (weekend news included).
+        monday = dt.datetime(2026, 11, 30, 15, 30, tzinfo=UTC)
+        self.assertEqual(job.previous_close(monday).astimezone(UTC),
+                         dt.datetime(2026, 11, 27, 21, 0, tzinfo=UTC))
+        # Friday after Thanksgiving -> Wednesday 16:00 NY.
+        friday = dt.datetime(2026, 11, 27, 15, 30, tzinfo=UTC)
+        self.assertEqual(job.previous_close(friday).astimezone(UTC),
+                         dt.datetime(2026, 11, 25, 21, 0, tzinfo=UTC))
 
     def test_short_names_do_not_match_inside_other_words(self):
         self.assertFalse(job.title_names("릴리바이레드 '러브빔 치크밤', 올리브영 어워즈 1위", "릴리"))
