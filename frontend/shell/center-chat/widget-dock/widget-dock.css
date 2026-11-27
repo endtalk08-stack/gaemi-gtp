@@ -387,8 +387,10 @@
   --qqq-text: #bfc3cb;
   grid-column: span 2;
   width: 100%;
-  min-height: 92px;
-  height: 92px;
+  min-height: 86px;
+  height: 86px;
+  padding: 8px 11px;
+  box-sizing: border-box;
 }
 .central-widget-card--live-quote .central-widget-card__kospi-title {
   gap: 6px;
@@ -405,6 +407,7 @@
   align-items: center;
   gap: 12px;
   min-height: 48px;
+  margin-top: 2px;
 }
 .central-widget-card--live-quote .central-widget-card__sparkline {
   display: block;
