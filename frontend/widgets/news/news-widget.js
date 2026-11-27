@@ -218,7 +218,7 @@
     }
     const cat=e.target.closest('[data-gnw-cat]');
     if(cat){
-      selected=cat.dataset.gnwCat;visible=5;render();
+      selected=cat.dataset.gnwCat;visible=Number.MAX_SAFE_INTEGER;render();
       refreshAi();
       syncAiRefresh();
       return;
