@@ -6,6 +6,13 @@
       const text = String(question || '').trim();
       if (!text) return false;
       if (!newConversation && ctx.getPendingQuestionSessionId() === ctx.getSession()?.id) return false;
+      const appMode = window.GaemiGTPAppState?.getCurrentAppMode?.() || 'gaemi';
+      const stockOnly = appMode === 'gaemi'
+        ? window.GaemiGTPCenterChatSearch?.resolveStockInputOnly?.(text) : '';
+      if (stockOnly && typeof window.GaemiGTPApp?.requestStock === 'function') {
+        window.GaemiGTPApp.requestStock(stockOnly);
+        return true;
+      }
       if (newConversation || !ctx.getSession()) {
         ctx.abortAnalysis();
         if (!ctx.beginChatSession()) return false;
