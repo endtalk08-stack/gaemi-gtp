@@ -21,7 +21,7 @@ vm.runInNewContext(fs.readFileSync(__dirname+'/../frontend/shell/center-chat/wid
  document.hidden=true;const before=calls;
  await [...timers.values()].filter(x=>x.ms===15000).at(-1).f();
  assert.equal(calls,before,'hidden tabs must stop history reads');
- document.hidden=false;reopened.isConnected=false;
+ document.hidden=false;reopened.isConnected=false;target.isConnected=false;
  await [...timers.values()].filter(x=>x.ms===15000).at(-1).f();assert.equal(calls,before);
  fail=false;pending=true;const newcomer=new Node('section');
  await window.GaemiGTPWidgetDock.renderInlineChart(newcomer,'NEW');
