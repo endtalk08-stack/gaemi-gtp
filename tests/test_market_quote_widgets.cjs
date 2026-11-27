@@ -22,16 +22,16 @@ test('USD/KRW and gold widgets render live ticks, daily changes and intraday cha
   w.fetch = async (url) => {
     const value = String(url);
     requested.push(value);
-    if (value === 'https://biquote.io/api/USDKRW') {
+    if (value === 'https://biquote.io/api/latest?symbols=USDKRW&symbols=XAUUSD') {
       return { ok: true, json: async () => ({
-        symbol: 'USDKRW', mid: 1450.5, dayDiffPercent: -0.2,
-        marketState: 'open', stale: false, quoteAgeSeconds: 2, timestamp: now
-      }) };
-    }
-    if (value === 'https://biquote.io/api/XAUUSD') {
-      return { ok: true, json: async () => ({
-        symbol: 'XAUUSD', mid: 4200, dayDiffPercent: 1.1,
-        marketState: 'open', stale: false, quoteAgeSeconds: 2, timestamp: now
+        USDKRW: {
+          symbol: 'USDKRW', mid: 1450.5, dayDiffPercent: -0.2,
+          marketState: 'open', stale: false, quoteAgeSeconds: 2, timestamp: now
+        },
+        XAUUSD: {
+          symbol: 'XAUUSD', mid: 4200, dayDiffPercent: 1.1,
+          marketState: 'open', stale: false, quoteAgeSeconds: 2, timestamp: now
+        }
       }) };
     }
     if (value.includes('/USDKRW/ohlc?')) return { ok: true, json: async () => bars(1450.5) };
@@ -60,8 +60,7 @@ test('USD/KRW and gold widgets render live ticks, daily changes and intraday cha
   assert.equal(gold.classList.contains('central-widget-card--qqq-muted'), false);
   assert.ok(fx.querySelector('.central-widget-card__sparkline'));
   assert.ok(gold.querySelector('.central-widget-card__sparkline'));
-  assert.ok(requested.includes('https://biquote.io/api/USDKRW'));
-  assert.ok(requested.includes('https://biquote.io/api/XAUUSD'));
+  assert.ok(requested.includes('https://biquote.io/api/latest?symbols=USDKRW&symbols=XAUUSD'));
   assert.ok(requested.some(url => url.includes('/USDKRW/ohlc?interval=1m')));
   assert.ok(requested.some(url => url.includes('/XAUUSD/ohlc?interval=1m')));
   assert.ok(requested.every(url => !/api.?key|token/i.test(url)));
