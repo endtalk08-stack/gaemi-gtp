@@ -1,4 +1,6 @@
 {
-  "operation": "restart",
-  "unit": "gaemigtp-us-news-ai.timer"
+  "operation": "run",
+  "path": "ops/do-gateway/check_news_ai_timer_20261127.py",
+  "request_id": "newsaitimer1_20261127",
+  "timeout": 60
 }
