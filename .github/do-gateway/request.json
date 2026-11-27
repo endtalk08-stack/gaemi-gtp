@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/audit_news_r2_state_20261127.py",
-  "request_id": "newsr2audit1_20261127",
-  "timeout": 120
+  "path": "ops/do-gateway/test_toss_style_ai_20261127.py",
+  "request_id": "tossaitest1_20261127",
+  "timeout": 300
 }
