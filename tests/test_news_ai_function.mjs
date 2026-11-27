@@ -48,3 +48,22 @@ test('company intros: only well-formed sentences, source label never exposed', a
   assert.deepEqual(body, { ok: true, items: { NVDA: '엔비디아는 AI 서버용 GPU를 만드는 회사예요.' } });
   assert.deepEqual(await (await profiles({ env: env(null) })).json(), { ok: true, items: {} });
 });
+
+test('macro headlines: keeps translated https items only and fixes the category', async () => {
+  const { onRequestGet: macro } = await import('../functions/news/macro/us.js');
+  const env = data => ({ DATA_R2: { get: async key => {
+    assert.equal(key, 'news/macro/us/feed.json');
+    return data === null ? null : { json: async () => data };
+  } } });
+  const body = await (await macro({ env: env({ ok: true, generated_at: 'g', items: [
+    { id: '0123456789abcdef', title: '연준, FOMC 성명 발표', title_en: 'FOMC statement', source: '연준',
+      category: '연준·금리', url: 'https://www.federalreserve.gov/x', published_at: '2026-11-27T19:00:00Z' },
+    { id: '1123456789abcdef', title: '', url: 'https://a.example', published_at: '2026-11-27T19:00:00Z' },
+    { id: '2123456789abcdef', title: '링크 없음', url: 'javascript:alert(1)', published_at: '2026-11-27T19:00:00Z' },
+    { id: '3123456789abcdef', title: '분류 이상', url: 'https://b.example', published_at: '2026-11-27T19:00:00Z',
+      category: '<b>' },
+  ] }) })).json();
+  assert.deepEqual(body.items.map(i => [i.id, i.category]),
+    [['macro:0123456789abcdef', '연준·금리'], ['macro:3123456789abcdef', '정책·규제']]);
+  assert.deepEqual(await (await macro({ env: env(null) })).json(), { ok: true, generated_at: null, items: [] });
+});
