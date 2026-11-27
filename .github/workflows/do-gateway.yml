@@ -32,7 +32,7 @@ jobs:
           import json, os, pathlib, re, subprocess
           req=json.loads(pathlib.Path('.github/do-gateway/request.json').read_text())
           op=req.get("operation")
-          if op not in ("status","logs","restart","stop-tradingview-news","enable-tradingview-news","link-news-r2-env","deploy","run","upgrade","enable-timer","enable-top20-api","enable-top20-https","remove-render-price-relay","kiwoom-verify","kiwoom-daily-backfill","alpaca-price-remove","alpaca-news-verify","cleanup"):
+          if op not in ("status","logs","restart","stop-tradingview-news","enable-tradingview-news","link-news-r2-env","deploy","run","upgrade","enable-timer","enable-top20-api","enable-top20-https","remove-render-price-relay","kiwoom-verify","kiwoom-daily-backfill","alpaca-price-remove","alpaca-news-verify","cleanup","install-translate-keys"):
               raise ValueError("invalid operation")
           allowed={
               "status":{"operation"},
@@ -53,10 +53,18 @@ jobs:
               "run":{"operation","path","request_id","timeout"},
               "kiwoom-daily-backfill":{"operation","path","request_id","timeout"},
               "upgrade":{"operation","path"},
+              "install-translate-keys":{"operation","request_id"},
           }[op]
           if set(req)!=allowed:
               raise ValueError("unexpected or missing request fields")
-          out={"operation":op,"arg1":"","arg2":"","arg3":"","source":""}
+          out={"operation":op,"arg1":"","arg2":"","arg3":"","source":"","install_keys":""}
+          if op=="install-translate-keys":
+              # Runs as an ordinary gateway "run" job whose script is generated from the
+              # environment secrets in the next step (never committed, never printed).
+              key=req["request_id"]
+              if not isinstance(key,str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,55}',key):
+                  raise ValueError("invalid request id")
+              out.update(operation="run",arg1=key,arg3="120",install_keys="1")
           if op in ("logs","restart","enable-timer"):
               u=req["unit"]
               if not isinstance(u,str) or not re.fullmatch(r'gaemigtp-[A-Za-z0-9_.@-]{1,100}\.(service|timer)',u):
@@ -122,9 +130,19 @@ jobs:
           ARG2: ${{ steps.request.outputs.arg2 }}
           ARG3: ${{ steps.request.outputs.arg3 }}
           SOURCE: ${{ steps.request.outputs.source }}
+          INSTALL_KEYS: ${{ steps.request.outputs.install_keys }}
+          DEEPL_API_KEY: ${{ steps.request.outputs.install_keys == '1' && secrets.DEEPL_API_KEY || '' }}
+          GOOGLE_TRANSLATE_API_KEY: ${{ steps.request.outputs.install_keys == '1' && secrets.GOOGLE_TRANSLATE_API_KEY || '' }}
         run: |
           set -euo pipefail
           SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)
+          if [[ "$INSTALL_KEYS" == "1" ]]; then
+            SOURCE="$RUNNER_TEMP/translate-keys.py"
+            python3 .github/do-gateway/make_translate_keys_job.py "$SOURCE"
+            ARG2="$(git hash-object -- "$SOURCE")"
+            # The generated payload holds the keys: remove it from the server afterwards.
+            trap 'ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" "rm -f .gaemi-gateway/payload" || true; rm -f "$SOURCE"' EXIT
+          fi
           if [[ -n "$SOURCE" ]]; then
             ssh "${SSH_OPTS[@]}" gaemi-deploy@"$DO_HOST" 'install -d -m 0700 "$HOME/.gaemi-gateway"'
             scp "${SSH_OPTS[@]}" "$SOURCE" gaemi-deploy@"$DO_HOST":.gaemi-gateway/payload
