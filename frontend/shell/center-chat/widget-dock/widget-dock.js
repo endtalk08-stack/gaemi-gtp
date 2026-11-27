@@ -479,6 +479,22 @@
     const staging = document.createElement('div');
     staging.innerHTML = activeIds.filter(id => !cards.has(id)).map(id => {
       const meta = catalog()[id];
+      if (id === 'usdkrw' || id === 'gold') {
+        const isFx = id === 'usdkrw';
+        const title = isFx ? '원/달러' : '국제 금 현물';
+        const symbol = isFx ? 'USD/KRW' : 'XAU/KRW';
+        const unit = isFx ? 'KRW' : 'KRW/g';
+        const source = isFx
+          ? '<a href="https://frankfurter.dev/" target="_blank" rel="noopener noreferrer">Frankfurter 기준환율</a>'
+          : '<a href="https://xaus.com/api/" target="_blank" rel="noopener noreferrer">XAUS 금 현물 참고가</a>';
+        return `<article class="central-widget-card central-widget-card--market-quote" data-central-widget-id="${id}" data-market-quote-widget="${id}" aria-label="${title} 위젯">
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${id}" onclick="window.GaemiGTPWidgetDock.remove('${id}')" aria-label="${title} 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
+          <div class="central-widget-card__kospi-title"><span>${symbol}</span><span class="central-widget-card__kospi-market-name">${title}</span></div>
+          <div class="market-quote-widget__value"><strong data-market-quote-value>—</strong><span>${unit}</span></div>
+          <div class="market-quote-widget__meta" data-market-quote-meta>시세 조회 중</div>
+          <div class="market-quote-widget__footer"><span data-market-quote-state>참고 시세</span>${source}</div>
+        </article>`;
+      }
       if (id === 'industry') {
         return '<article class="central-widget-card central-widget-card--industry" data-central-widget-id="industry" aria-label="업종 위젯"><div data-industry-widget-target="center"></div></article>';
       }
