@@ -219,6 +219,10 @@ jobs:
           wranglerVersion: "4.167.0"
           workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
           command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash ${{ github.sha }}
+      - name: Check out the deployed commit for verification scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - name: Verify every production asset byte-for-byte
         run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
       - name: Verify production Pages Functions and existing R2 binding
