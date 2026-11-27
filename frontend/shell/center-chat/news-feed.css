@@ -7,6 +7,42 @@
 /* The News feed precedes the dock in the HTML, so explicitly place the dock
    immediately below the header instead of below the growing feed. */
 #mainContent.is-news-view > #gaemiCenterNewsFeed { order: 2; }
+/* In News mode the dock contains the long market-widget grid. Make this the
+   bounded, touch-scrollable content area beneath the fixed center header. */
+#mainContent.is-news-view {
+  display: flex !important;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+#mainContent.is-news-view > #centralWidgetDock {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  order: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+#mainContent.is-news-view > #centralWidgetDock > #centralWidgetDockBody {
+  flex: 0 0 auto;
+  min-height: 100%;
+  align-content: start;
+}
+#mainContent.is-news-view > #centralWidgetDock::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 #mainContent > #gaemiCenterNewsFeed[hidden] { display: none !important; }
 #mainContent > #gaemiCenterNewsFeed {
   display: block; flex: 1 1 auto; min-height: 0;
@@ -15,6 +51,14 @@
 }
 .dark #mainContent > #gaemiCenterNewsFeed { background: #0f1013; color: #e6e7e9; }
 #mainContent > #gaemiCenterNewsFeed::-webkit-scrollbar { display: none; width: 0; height: 0; }
+/* Touch input must scroll the dock; widget drag remains disabled for ordinary touch. */
+@media (hover: none) and (pointer: coarse) {
+  .central-widget-card__kospi-title,
+  .central-widget-card__top,
+  .central-widget-card__news-caption-title {
+    touch-action: pan-y;
+  }
+}
 .gaemi-center-news-inner { width: 100%; max-width: 48rem; margin: 0 auto; padding: 24px 24px 32px; font-family: var(--gtp-font-family); }
 .gaemi-center-news-item { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 14px; margin-bottom: 32px; align-items: start; }
 .gaemi-center-news-time { font-size: var(--gtp-type-meta); font-weight: var(--gtp-weight-meta); font-variant-numeric: tabular-nums; color: var(--gtp-muted); line-height: 1.65; }
