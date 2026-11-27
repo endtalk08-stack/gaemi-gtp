@@ -501,7 +501,8 @@
               <polyline data-market-quote-line points=""></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-market-quote-value>—</strong><span class="central-widget-card__kospi-change" data-market-quote-change>—</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-market-quote-value>—</strong><span>${unit}</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-change" data-market-quote-change>—</div>
               <div class="central-widget-card__kospi-row central-widget-card__kospi-reason" data-market-quote-meta>실시간 시세 연결 중</div>
             </div>
           </div>
