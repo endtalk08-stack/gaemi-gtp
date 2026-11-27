@@ -1,3 +1,1 @@
-{
-  "operation": "status"
-}
+{"operation":"run","path":"ops/do-gateway/probe_macro_pages_20261128.py","request_id":"macro-pages-probe-20261128","timeout":120}
