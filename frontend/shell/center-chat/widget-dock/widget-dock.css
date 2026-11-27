@@ -385,14 +385,7 @@
 /* Live USD/KRW and gold: same compact price/change hierarchy as the market cards. */
 .central-widget-card--live-quote {
   --qqq-text: #bfc3cb;
-}
-.central-widget-card--live-quote .central-widget-card__kospi-title,
-.central-widget-card--live-quote .central-widget-card__kospi-market-name,
-.central-widget-card--live-quote .central-widget-card__kospi-market strong,
-.central-widget-card--live-quote .central-widget-card__kospi-change,
-.central-widget-card--live-quote .central-widget-card__kospi-reason {
-  color: var(--qqq-text);
-  font-weight: 400;
+  grid-column: span 2;
 }
 .central-widget-card--live-quote .central-widget-card__kospi-title {
   gap: 6px;
@@ -405,17 +398,18 @@
 }
 .central-widget-card--live-quote .central-widget-card__kospi-body {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  min-height: 48px;
 }
 .central-widget-card--live-quote .central-widget-card__sparkline {
   display: block;
   grid-column: 1;
   grid-row: 1;
   align-self: center;
-  width: 54px;
-  height: 28px;
+  width: 88px;
+  height: 40px;
 }
 .central-widget-card--live-quote .central-widget-card__kospi-copy {
   grid-column: 2;
@@ -423,70 +417,12 @@
   min-width: 0;
 }
 .central-widget-card--live-quote .central-widget-card__kospi-market {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   justify-content: center;
   gap: 2px;
   white-space: nowrap;
-}
-.central-widget-card--live-quote .central-widget-card--live-quote__price {
-  grid-row: 1;
-}
-.central-widget-card--live-quote .central-widget-card__kospi-market > [data-market-quote-percent] {
-  grid-row: 2;
-}
-.central-widget-card--live-quote .central-widget-card__kospi-market strong {
-  font-size: 18px;
-  line-height: 22px;
-}
-.central-widget-card--live-quote .central-widget-card__kospi-market > [data-market-quote-percent] {
-  flex: 0 0 auto;
-  font-size: 20px !important;
-  font-weight: 800 !important;
-  line-height: 22px !important;
-}
-.central-widget-card--live-quote .central-widget-card__sparkline polygon {
-  fill: currentColor;
-  opacity: .16;
-  stroke: none;
-}
-.central-widget-card--live-quote .central-widget-card__kospi-market {
-  justify-content: space-between;
-  gap: 4px;
-}
-.central-widget-card--live-quote .central-widget-card__kospi-market strong {
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 24px;
-  letter-spacing: -.4px;
-}
-.central-widget-card--live-quote .central-widget-card__kospi-change {
-  justify-content: flex-start;
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 12px;
-  letter-spacing: 0;
-}
-.central-widget-card--live-quote .central-widget-card__kospi-reason {
-  display: block;
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 9px;
-  line-height: 12px;
-}
-.central-widget-card--live-quote.central-widget-card--qqq-muted .central-widget-card__sparkline polygon {
-  opacity: .08;
-}
-
-
-/* Keep FX and gold quote cards aligned like the existing ETF quote cards. */
-.central-widget-card--live-quote .central-widget-card__kospi-market {
-  justify-content: space-between;
-  gap: 4px;
 }
 .central-widget-card--live-quote__price {
   display: inline-flex;
@@ -494,14 +430,24 @@
   gap: 4px;
   min-width: 0;
 }
+.central-widget-card--live-quote .central-widget-card__kospi-market strong {
+  color: var(--qqq-text);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 24px;
+  letter-spacing: -.4px;
+}
 .central-widget-card--live-quote .central-widget-card__kospi-market > [data-market-quote-percent] {
   flex: 0 0 auto;
   font-size: 20px !important;
   font-weight: 800 !important;
   line-height: 24px !important;
 }
-.central-widget-card--live-quote [data-market-quote-change] {
-  justify-content: flex-start;
-  font-size: 10px;
-  line-height: 13px;
+.central-widget-card--live-quote .central-widget-card__sparkline polygon {
+  fill: currentColor;
+  opacity: .16;
+  stroke: none;
+}
+.central-widget-card--live-quote.central-widget-card--qqq-muted .central-widget-card__sparkline polygon {
+  opacity: .08;
 }
