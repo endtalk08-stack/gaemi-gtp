@@ -1,3 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/probe_industry_map_stocks_20261127.py",
+  "request_id": "mapstocks1_20261127",
+  "timeout": 120
 }
