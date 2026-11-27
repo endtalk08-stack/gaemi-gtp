@@ -55,7 +55,7 @@ jobs:
       - name: Verify portable widget lifecycle
         run: |
           npm install --prefix "$RUNNER_TEMP/widget-validation" jsdom@27.2.0 --no-audit --no-fund
-          NODE_PATH="$RUNNER_TEMP/widget-validation/node_modules" node --test tests/test_portable_widgets.cjs tests/test_workspace_state.cjs tests/test_chat_stock_name_route.cjs tests/test_news_widget_ai_tab.cjs tests/test_news_ai_function.mjs
+          NODE_PATH="$RUNNER_TEMP/widget-validation/node_modules" node --test tests/test_portable_widgets.cjs tests/test_market_quote_widgets.cjs tests/test_workspace_state.cjs tests/test_chat_stock_name_route.cjs tests/test_news_widget_ai_tab.cjs tests/test_news_ai_function.mjs
       - name: Build Pages Functions from repository root
         run: npx --yes wrangler@4.167.0 pages functions build functions --project-directory . --outdir "$RUNNER_TEMP/pages-functions"
       - name: Preserve critical application checks
@@ -74,6 +74,7 @@ jobs:
           node --check frontend/shell/right-panel/right-panel-tabs.js
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
+          node --check frontend/widgets/market-quotes/market-quotes-widget.js
           node --test tests/test_sidebar_issue_sync.cjs
           grep -Fq 'const renderIndustryMap = (data) =>' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq 'industry-map-sector' frontend/shell/left-market-sidebar/market-sidebar.js
