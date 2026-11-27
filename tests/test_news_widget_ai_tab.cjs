@@ -48,16 +48,17 @@ test('분석 tab sits after 전체 and lists only published articles with their 
   assert.deepEqual(requested, ['/news/ai/us/top20']);
   const rows = [...root.querySelectorAll('.gnw-ai-item')];
   assert.equal(rows.length, 3);                                   // no_news is not an article
-  assert.equal(rows[0].querySelector('.gnw-title').textContent, '마이크론 테크놀로지 장기 공급계약 확대로 6.26% 상승');
+  assert.equal(rows[0].querySelector('.gnw-title').textContent, '마이크론 테크놀로지 장기 공급계약 확대');
   assert.equal(rows[0].querySelector('.gnw-summary').textContent, '원인 문장이에요.\n흐름 문장이에요.\n기업 소개 문장이에요.');
   assert.equal(rows[1].querySelector('.gnw-title').textContent, '애플, 아이폰16 AI 기능 광고 심의 착수');
-  assert.ok(rows[2].querySelector('.gnw-ai-down'));
+  assert.equal(rows[2].querySelector('.gnw-title').textContent, '테슬라 로보택시 일정 지연');
+  assert.ok(!rows.some(r => /%/.test(r.querySelector('.gnw-title').textContent)));   // no change rate
 });
 
 test('opening an article uses the existing news detail view', async (t) => {
   const { root } = await widget(t);
   root.querySelector('[data-gnw-open="ai:MU"]').click();
-  assert.equal(root.querySelector('.gnw-detail-title').textContent, '마이크론 테크놀로지 장기 공급계약 확대로 6.26% 상승');
+  assert.equal(root.querySelector('.gnw-detail-title').textContent, '마이크론 테크놀로지 장기 공급계약 확대');
   assert.equal(root.querySelector('.gnw-detail-source').textContent, '개미지티피');
   assert.deepEqual([...root.querySelectorAll('.gnw-article-body p')].map(p => p.textContent),
     ['원인 문장이에요.', '흐름 문장이에요.', '기업 소개 문장이에요.']);

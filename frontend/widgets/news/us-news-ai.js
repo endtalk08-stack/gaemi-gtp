@@ -46,11 +46,11 @@
     return keyword + (jong === 0 || jong === 8 ? '로' : '으로');
   }
 
-  // Title shown in both the list and the existing detail view.
+  // Title shown in both the list and the existing detail view: "브로드컴 UBS 상승 가능성".
+  // No change rate: the price at analysis time is not the price when the news broke.
   function titleText(item) {
     if (item?.type === 'news') return item.news_headline;
-    const move = moveText(item);
-    return [item.name, withParticle(item.headline_keyword), move].filter(Boolean).join(' ');
+    return [item.name, item.headline_keyword].filter(Boolean).join(' ');
   }
 
   // Shape a published analysis like any other news item for the existing widget views.

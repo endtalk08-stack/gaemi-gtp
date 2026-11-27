@@ -447,12 +447,7 @@
   }
   function renderAiListItem(item) {
     const time=listTimeText(item);
-    const data=item.ai;
-    const tone=data.change_pct > 0 ? 'gnw-ai-up' : data.change_pct < 0 ? 'gnw-ai-down' : '';
-    // Reason articles color only the Kiwoom move; news articles read as a plain headline.
-    const title = data.type === 'news' ? escape(item.title)
-      : [escape(data.name), escape(ai().withParticle(data.headline_keyword)),
-         `<span class="${tone}">${escape(ai().moveText(data))}</span>`].join(' ');
+    const title = escape(item.title);
     return `<button type="button" class="gnw-item gnw-ai-item" data-gnw-open="${escape(item.id)}">
       <div class="gnw-list-row">
         <div class="gnw-list-heading">

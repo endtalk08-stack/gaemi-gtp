@@ -132,6 +132,3 @@
   box-sizing: border-box;
 }
 
-/* 분석 tab: only the Kiwoom move in a reason headline is colored. */
-.gnw-ai-up { color:#e5484d; }
-.gnw-ai-down { color:#3a8ff0; }
