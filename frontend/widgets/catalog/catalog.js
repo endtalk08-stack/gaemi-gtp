@@ -13,7 +13,7 @@
     'news-caption': { title: '속보', icon: 'radio-tower', description: '한 줄 뉴스 제목 자막' },
     'news-feed': { title: '뉴스', icon: 'newspaper', description: '검색·분류별 뉴스 피드' },
     'industry': { title: '업종', icon: 'layout-grid', description: '업종 ETF 등락률 및 시가총액 상위 종목' },
-    'usdkrw': { title: '원/달러', icon: 'banknote', description: 'USD/KRW 일간 기준환율' },
-    'gold': { title: '금 시세', icon: 'coins', description: '국제 금 현물 원화 환산 가격' },
+    'usdkrw': { title: '원/달러', icon: 'banknote', description: 'USDKRW 실시간 시세' },
+    'gold': { title: '금 시세', icon: 'coins', description: 'XAUUSD 실시간 현물의 원화/g 환산 시세' },
   });
 }());
