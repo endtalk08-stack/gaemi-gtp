@@ -1378,7 +1378,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path)
-        if path.path == "/api/ai-test/chat":
+        if path.path in ("/api/ai-test/chat", "/market/issue-headlines"):
             return self._dispatch_flask_app()
         return self._json(404, {"ok": False, "error": "not_found"})
 
