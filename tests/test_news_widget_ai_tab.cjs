@@ -72,3 +72,20 @@ test('opening an article uses the existing news detail view', async (t) => {
   root.querySelector('[data-gnw-back]').click();
   assert.equal(root.querySelectorAll('.gnw-ai-item').length, 3);
 });
+
+test('an empty analysis list is left blank', async (t) => {
+  const dom = new JSDOM('<div data-central-widget-id="news-feed"><section data-gnw-root></section></div>',
+    { url: 'https://example.test', runScripts: 'outside-only' });
+  const w = dom.window;
+  t.after(() => w.close());
+  w.fetch = async () => ({ ok: true, json: async () => ({ ok: true, items: [
+    { status: 'no_news', symbol: 'SNDK', name: '샌디스크' }] }) });
+  w.eval(read('frontend/widgets/news/us-news-ai.js'));
+  w.eval(read('frontend/widgets/news/news-widget.js'));
+  w.GaemiGTPNewsWidget.mount();
+  const root = w.document.querySelector('[data-gnw-root]');
+  root.querySelector('[data-gnw-cat="분석"]').click();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(root.querySelector('.gnw-list').textContent.trim(), '');
+  assert.ok(!root.textContent.includes('뉴스'), 'no "뉴스 없음" style message');
+});

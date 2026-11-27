@@ -461,10 +461,10 @@
   function renderAiList() {
     const rows=aiItems();
     if (rows.length) return rows.map(renderAiListItem).join('');
-    if (!ai()?.get()) return '<div class="gnw-empty"><div>기사를 불러오는 중이에요.</div></div>';
+    // No article yet: leave the list blank (search keeps its usual message).
     return query.trim()
       ? '<div class="gnw-empty"><div class="gnw-empty-mark">⌕</div><div>검색 결과가 없습니다</div></div>'
-      : '<div class="gnw-empty"><div>미국장 거래대금 상위 종목 기사는 한국 시간 밤 12시 30분부터 5분마다 올라와요.</div></div>';
+      : '';
   }
   let aiRefreshTimer = null;
   function refreshAi() {

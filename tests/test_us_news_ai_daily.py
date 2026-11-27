@@ -95,6 +95,11 @@ class ValidateTest(unittest.TestCase):
                 continue
             self.assertIn(problem, job.validate(result, 3), problem)
         self.assertIn("headline", job.validate({**GOOD, "headline": "앤트로픽, 기술주 반등에 상승"}, 3))
+        self.assertIn("headline", job.validate({**GOOD, "headline": "엔비디아 주가 급락"}, 3))
+        self.assertIn("headline", job.validate({**GOOD, "headline": "마이크론, 공급계약 확대로 6% 올라"}, 3))
+        # A cause that contains a move word is still a valid headline.
+        self.assertEqual(job.validate({**GOOD, "headline": "브로드컴, UBS 상승 가능성 제시"}, 3), [])
+        self.assertEqual(job.validate({**GOOD, "headline": "TSMC, 대만 증시 저가 매수에 반등 기대"}, 3), [])
         self.assertIn("company_in_keyword", job.validate(
             {**GOOD, "keywords": ["엔비디아 옴니버스 호환", *GOOD["keywords"][1:]],
              "headline_keyword": "엔비디아 옴니버스 호환"}, 3, company_terms={"엔비디아"}))

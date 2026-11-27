@@ -71,7 +71,8 @@ SYSTEM_PROMPT = """너는 미국 주식 뉴스를 한국 개인투자자에게 �
    - lines[1]: 그 소식의 배경이나 의미
    - lines[2]: 회사 소개 (두 type 모두 같음. company_profile이 있으면 그대로, 없으면 무슨 회사인지 1문장)
    headline: 기사 제목 한 줄. "회사명, 핵심 내용" 형태로 회사명은 한 번만, 35자 이내.
-   reason이면 원인을, news면 소식을 담아. 숫자·퍼센트와 상승·하락·급등·급락 같은 주가 표현은 쓰지 마.
+   reason이면 원인을, news면 소식을 담아. 숫자·퍼센트는 쓰지 말고, "주가 상승"이나 "~에 하락"처럼
+   주가가 움직였다는 표현으로 끝내지 마.
    예: "브로드컴, UBS '반등 여력 충분' 평가", "테슬라, 독일 정밀기계 기업 EMAG 인수 추진"
 5. 숫자(주가, 등락률, 퍼센트)는 쓰지 마. 숫자는 화면이 따로 붙여.
 6. 기사에 없는 내용을 지어내지 마.
@@ -282,7 +283,9 @@ def build_user_message(stock, articles, company_profile=None):
 RESULT_WORDS = re.compile(r"(?:주가\s*)?(?:상승|하락|급등|급락|폭등|폭락|반등)$")
 
 
-MOVE_WORDS = re.compile(r"상승|하락|급등|급락|폭등|폭락|반등|강세|약세")
+# Only a headline that reports the price move itself is rejected ("…에 상승", "주가 급등");
+# a cause such as "UBS 상승 가능성" or "반등 기대" is fine.
+MOVE_WORDS = re.compile(r"주가\s*(?:상승|하락|급등|급락|폭등|폭락)|(?:에|로|으로)\s*(?:상승|하락|급등|급락|폭등|폭락)\s*$")
 
 
 def validate(result, article_count, company_terms=()):
