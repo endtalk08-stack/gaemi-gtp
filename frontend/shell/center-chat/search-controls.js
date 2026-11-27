@@ -49,7 +49,7 @@
   function resolveStockInputOnly(value) {
     const query = String(value || '').trim().toLowerCase();
     if (!query) return '';
-    const compact = query.replace(/\\s+/g, '');
+    const compact = query.replace(/\s+/g, '');
     return STOCK_SEARCH_ALIASES[query] || STOCK_SEARCH_ALIASES[compact] || '';
   }
 
