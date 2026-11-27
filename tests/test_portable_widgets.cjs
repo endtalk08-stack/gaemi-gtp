@@ -277,6 +277,6 @@ test('left sidebar keeps all market tabs and restores moved widgets after refres
   assert.equal(marketSidebar.includes('시장 시세'), false);
   assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
   assert.match(html, /market-sidebar\.js\?v=20261127-ai-headline-v1/);
-  assert.match(html, /widget-dock\.js\?v=20261125-widget-state-persist-v2/);
+  assert.match(html, /widget-dock\.js\?v=20261127-chart-widget-v1/);
   secondDom.window.close();
 });
