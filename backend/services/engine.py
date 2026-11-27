@@ -2325,7 +2325,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
         # 1~2. 외부 API는 한 요청 안에서 순차 처리한다.
         # 이전 구조는 여러 외부 API를 ThreadPoolExecutor에 동시에 넣은 뒤
         # timeout이 나도 실행 중인 작업이 남아 다음 요청과 겹칠 수 있었다.
-        # Render/Gunicorn에서는 이 누적이 반복 검색 시 502로 이어질 수 있어
+        # API worker에서는 이 누적이 반복 검색 시 502로 이어질 수 있어
         # 요청마다 외부 작업이 남지 않도록 직접 호출한다.
         if is_krw and clean_code:
             analyze_started = time.monotonic()
