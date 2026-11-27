@@ -46,6 +46,8 @@ test('USD/KRW and gold widgets render live ticks, daily changes and intraday cha
   assert.equal(dock.add('usdkrw'), true);
   assert.equal(dock.add('gold'), true);
   await new Promise(resolve => setTimeout(resolve, 25));
+  await w.GaemiGTPMarketQuoteWidgets.refresh();
+  await new Promise(resolve => setTimeout(resolve, 25));
 
   const fx = w.document.querySelector('[data-market-quote-widget="usdkrw"]');
   const gold = w.document.querySelector('[data-market-quote-widget="gold"]');
