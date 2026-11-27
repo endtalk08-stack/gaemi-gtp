@@ -103,6 +103,19 @@ class CallGroqTest(unittest.TestCase):
         self.assertEqual(payload["response_format"]["type"], "json_schema")
 
 
+class MarketWrapOnlyTest(unittest.TestCase):
+    def test_type_none_publishes_nothing(self):
+        stock = {"rank": 3, "symbol": "ANT", "name": "앤트로픽"}
+        raw = [article("[속보] 미국 뉴욕 증시 기술주 혼조…테슬라·앤트로픽 상승", 1, 7)]
+        none = {**GOOD, "type": "none"}
+        with patch.object(job, "title_terms", return_value={"앤트로픽"}):
+            status, result, articles, tokens, diag = job.analyze_stock(
+                stock, {}, fetch=lambda *a, **k: raw, reader=lambda *a, **k: [],
+                groq=lambda message: (none, 900), now=RUN_AT)
+        self.assertEqual((status, result, tokens), ("no_news", None, 900))
+        self.assertEqual(diag["attempts"], 1)
+
+
 class RunTest(unittest.TestCase):
     def setUp(self):
         self.state_path = Path(tempfile.mkdtemp()) / "state.json"

@@ -52,6 +52,9 @@ SYSTEM_PROMPT = """너는 미국 주식 뉴스를 한국 개인투자자에게 �
 - "reason": 기사에서 이 종목이 오늘 움직인 직접적인 원인을 찾았을 때.
 - "news": 원인이 뚜렷하지 않을 때. 이때는 이 종목에 관한 가장 중요한 최신 소식을
   기사처럼 전해. 주가가 움직인 이유라고 말하지 마.
+- "none": 원인도, 전할 만한 이 종목의 소식도 없을 때.
+주가가 올랐다·내렸다는 사실만 전하는 시황·장 마감 기사(예: "뉴욕증시 기술주 혼조…
+○○ 상승")는 원인도 소식도 아니야. 그런 기사뿐이면 type은 "none"이야.
 
 규칙
 1. 반드시 지정된 JSON 형식으로만 답해. 다른 말은 쓰지 마.
@@ -82,7 +85,7 @@ RESPONSE_SCHEMA = {
         "additionalProperties": False,
         "required": ["type", "headline_keyword", "news_headline", "keywords", "lines", "source_ids"],
         "properties": {
-            "type": {"type": "string", "enum": ["reason", "news"]},
+            "type": {"type": "string", "enum": ["reason", "news", "none"]},
             "headline_keyword": {"type": "string"},
             "news_headline": {"type": "string"},
             "keywords": {"type": "array", "items": {"type": "string"}},
@@ -386,6 +389,9 @@ def analyze_stock(stock, profiles, *, fetch=None, reader=None, groq=call_groq, n
         diagnostics["attempts"] = attempt + 1
         result, used = groq(message)
         tokens += used or 0
+        if isinstance(result, dict) and result.get("type") == "none":
+            # Only market wraps that restate the move: nothing to publish.
+            return "no_news", None, articles, tokens, diagnostics
         problems = validate(result, len(articles))
         if not problems:
             return "ok", result, articles, tokens, diagnostics
