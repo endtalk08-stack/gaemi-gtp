@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh verified US daily candles after the New York market close
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 16:25:00 America/New_York
+Unit=gaemigtp-us-daily-chart.service
+Persistent=false
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
