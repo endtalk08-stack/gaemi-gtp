@@ -96,7 +96,14 @@
       : '—';
     if (changeNode) {
       const change = record?.changePct;
-      changeNode.textContent = Number.isFinite(change) ? (change > 0 ? '+' : '') + change.toFixed(2) + '%' : '—';
+      const amount = record?.changeAmount;
+      const digits = id === 'usdkrw' ? 2 : 0;
+      const amountText = Number.isFinite(amount)
+        ? (amount > 0 ? '+' : amount < 0 ? '-' : '') + format(Math.abs(amount), digits) + (id === 'usdkrw' ? '원' : '원/g')
+        : '';
+      changeNode.textContent = Number.isFinite(change)
+        ? (amountText ? amountText + ' ' : '') + '(' + (change > 0 ? '+' : '') + change.toFixed(2) + '%)'
+        : '—';
       changeNode.classList.toggle('central-widget-card__kospi-change--up', fresh && change > 0);
       changeNode.classList.toggle('central-widget-card__kospi-change--down', fresh && change < 0);
     }
@@ -140,9 +147,12 @@
   }
 
   function makeRecord(tick, price, changePct, id) {
+    const changeAmount = Number.isFinite(changePct) && changePct > -100
+      ? price - price / (1 + changePct / 100) : null;
     return {
       price,
       changePct,
+      changeAmount,
       time: tick.timestamp,
       fresh: isFresh(tick),
       marketState: tick.marketState || 'unknown',
