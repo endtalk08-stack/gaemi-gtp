@@ -16,12 +16,24 @@ _CACHE = {}
 _OFFICIAL_CACHE = {}
 
 
+def _is_trading_day(day):
+    if day.weekday() >= 5:
+        return False
+    try:
+        from backend.kiwoom_us_top20_api import _is_us_market_holiday
+        return not _is_us_market_holiday(day)
+    except Exception:
+        return True
+
+
 def _target(now):
     local = now.astimezone(_NY)
     day = local.date()
     # After the regular close, do not substitute yesterday's close while
-    # today's official record is still being published.
-    if local.weekday() < 5 and local.time() >= dt.time(16):
+    # today's official record is still being published. A weekend or market
+    # holiday (e.g. Thanksgiving) has no close of its own, so its evening and
+    # overnight ticks compare with the latest earlier close instead.
+    if _is_trading_day(day) and local.time() >= dt.time(16):
         return day, True
     return day - dt.timedelta(days=1), False
 
