@@ -8,7 +8,8 @@ test('USD/KRW and gold plugins render real source data with explicit freshness l
     url: 'https://example.test', runScripts: 'outside-only'
   });
   const w = dom.window;
-  w.setInterval = () => 0;
+  w.setInterval = () => 1;
+  Object.defineProperty(w.document, 'hidden', { value: false, configurable: true });
   w.AbortSignal = AbortSignal;
   const requested = [];
   w.fetch = async (url) => {
