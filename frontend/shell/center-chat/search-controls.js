@@ -15,6 +15,15 @@
     return STOCK_SEARCH_ALIASES[query.toLowerCase()] || STOCK_SEARCH_ALIASES[query] || query;
   }
 
+  // Return a stock only when the complete chat input is a known company alias/ticker.
+  // A longer natural-language question must stay on the normal question path.
+  function resolveStockInputOnly(value) {
+    const query = String(value || '').trim().toLowerCase();
+    if (!query) return '';
+    const compact = query.replace(/\\s+/g, '');
+    return STOCK_SEARCH_ALIASES[query] || STOCK_SEARCH_ALIASES[compact] || '';
+  }
+
   // Reuse stock-search aliases when a user mentions a company in a chat question.
   function resolveStockMention(question) {
     const words = String(question || '').toLowerCase().match(/[a-z0-9가-힣]+/g) || [];
@@ -130,7 +139,7 @@
     document.getElementById('bottomModeMenu')?.classList.add('hidden');
   }
 
-  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, resolveStockMention, selectStock, openStockInChat, focusStockInput, submitStockSearch, submitChatInput, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace, resetToHome };
+  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, resolveStockInputOnly, resolveStockMention, selectStock, openStockInChat, focusStockInput, submitStockSearch, submitChatInput, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace, resetToHome };
   window.enterChatWorkspace = enterChatWorkspace;
   window.resetToHome = resetToHome;
   window.openStockInChat = openStockInChat;
