@@ -55,7 +55,7 @@ jobs:
       - name: Verify portable widget lifecycle
         run: |
           npm install --prefix "$RUNNER_TEMP/widget-validation" jsdom@27.2.0 --no-audit --no-fund
-          NODE_PATH="$RUNNER_TEMP/widget-validation/node_modules" node --test tests/test_portable_widgets.cjs tests/test_workspace_state.cjs tests/test_chat_stock_name_route.cjs
+          NODE_PATH="$RUNNER_TEMP/widget-validation/node_modules" node --test tests/test_portable_widgets.cjs tests/test_workspace_state.cjs tests/test_chat_stock_name_route.cjs tests/test_news_widget_ai_tab.cjs tests/test_news_ai_function.mjs
       - name: Build Pages Functions from repository root
         run: npx --yes wrangler@4.167.0 pages functions build functions --project-directory . --outdir "$RUNNER_TEMP/pages-functions"
       - name: Preserve critical application checks

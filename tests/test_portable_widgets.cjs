@@ -198,7 +198,7 @@ test('right panel constrains only vertical scrolling and keeps the moved news wi
   assert.match(dashboardCss, /panel-workspace\/panel-workspace\.css\?v=20261125-right-news-height-scroll-v2/);
   const html = readFileSync('frontend/index.html', 'utf8');
   assert.match(html, /dashboard\.css\?v=20261125-right-news-height-scroll-v2/);
-  assert.match(html, /news-widget\.css\?v=20261125-left-sidebar-scroll-v1/);
+  assert.match(html, /news-widget\.css\?v=20261127-ai-tab-v1/);
 });
 
 
@@ -248,7 +248,7 @@ test('left sidebar keeps all market tabs and restores moved widgets after refres
   const marketSidebar = readFileSync('frontend/shell/left-market-sidebar/market-sidebar.js', 'utf8');
   assert.equal(marketSidebar.includes('시장 시세'), false);
   assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
-  assert.match(html, /market-sidebar\.js\?v=20261125-market-title-clean-v1/);
+  assert.match(html, /market-sidebar\.js\?v=20261127-ai-headline-v1/);
   assert.match(html, /widget-dock\.js\?v=20261125-widget-state-persist-v2/);
   secondDom.window.close();
 });
