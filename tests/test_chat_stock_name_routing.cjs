@@ -22,11 +22,13 @@ for (const [input, expected] of [
   assert.equal(resolveStockInputOnly(input), expected, input);
 }
 assert.equal(resolveStockInputOnly('엔비디아 왜 올랐어?'), '');
+assert.equal(searchWindow.GaemiGTPCenterChatSearch.isQuestionInput('엔비디아 왜 올랐어?'), true);
+assert.equal(searchWindow.GaemiGTPCenterChatSearch.isQuestionInput('LITE'), false);
 
 const requested = [];
 const chatWindow = {
   GaemiGTPAppState: { getCurrentAppMode: () => 'gaemi' },
-  GaemiGTPCenterChatSearch: { resolveStockInputOnly },
+  GaemiGTPCenterChatSearch: searchWindow.GaemiGTPCenterChatSearch,
   GaemiGTPApp: { requestStock: (stock) => requested.push(stock) },
 };
 vm.runInNewContext(
@@ -38,5 +40,6 @@ const chat = chatWindow.GaemiGTPCenterAIChat.create({
   getSession: () => null,
 });
 assert.equal(chat.submitQuestion('엔비디아'), true);
-assert.deepEqual(requested, ['엔비디아']);
+assert.equal(chat.submitQuestion('LITE'), true);
+assert.deepEqual(requested, ['엔비디아', 'LITE']);
 console.log('PASS: exact company/ticker chat input starts stock analysis');
