@@ -451,3 +451,27 @@
 .central-widget-card--live-quote.central-widget-card--qqq-muted .central-widget-card__sparkline polygon {
   opacity: .08;
 }
+
+
+/* Keep FX and gold quote cards aligned like the existing ETF quote cards. */
+.central-widget-card--live-quote .central-widget-card__kospi-market {
+  justify-content: space-between;
+  gap: 4px;
+}
+.central-widget-card--live-quote__price {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.central-widget-card--live-quote .central-widget-card__kospi-market > [data-market-quote-percent] {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+}
+.central-widget-card--live-quote [data-market-quote-change] {
+  justify-content: flex-start;
+  font-size: 10px;
+  line-height: 13px;
+}
