@@ -132,15 +132,6 @@
   box-sizing: border-box;
 }
 
-/* AI analysis tab: "엔비디아 차세대 GPU 기대로 4.05% 상승" */
-.gnw-ai-name { font-weight:600; }
-.gnw-ai-up { color:#e5484d; font-weight:600; }
-.gnw-ai-down { color:#3a8ff0; font-weight:600; }
-.gnw-ai-item .gnw-summary { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.gnw-ai-eyebrow { color:var(--gtp-muted); font-size:13px; line-height:1.4; }
-.gnw-ai-lines { margin:0; padding-left:18px; display:grid; gap:8px; color:var(--gtp-text); font-size:15px; line-height:1.6; }
-.gnw-ai-sources { display:grid; gap:2px; }
-.gnw-ai-source { display:grid; gap:2px; padding:10px 12px; background:var(--gtp-surface); color:var(--gtp-text); text-decoration:none; }
-.gnw-ai-source:hover { text-decoration:underline; }
-.gnw-ai-source-meta { color:var(--gtp-muted); font-size:12px; }
-.gnw-ai-source-title { font-size:14px; line-height:1.45; overflow-wrap:anywhere; }
+/* 분석 tab: only the Kiwoom move in a reason headline is colored. */
+.gnw-ai-up { color:#e5484d; }
+.gnw-ai-down { color:#3a8ff0; }

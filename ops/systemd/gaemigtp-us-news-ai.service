@@ -12,8 +12,8 @@ EnvironmentFile=/var/lib/gaemigtp-news/r2.env
 Environment=PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WorkingDirectory=/opt/gaemigtp-news/app
 ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.us_news_ai_daily
-# 20 stocks paced about one per minute for the Groq token limit.
-TimeoutStartSec=2400
+# 20 stocks, one every five minutes (about 1 hour 40 minutes).
+TimeoutStartSec=7800
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const ENDPOINT = '/news/ai/us/top20';
-  const TTL = 300000;
+  const TTL = 60000;   // a new article arrives every 5 minutes
   let snapshot = null;
   let fetchedAt = 0;
   let pending = null;
@@ -46,5 +46,27 @@
     return keyword + (jong === 0 || jong === 8 ? '로' : '으로');
   }
 
-  window.GaemiGTPUsNewsAi = { load, bySymbol, get: () => snapshot, moveText, withParticle };
+  // Title shown in both the list and the existing detail view.
+  function titleText(item) {
+    if (item?.type === 'news') return item.news_headline;
+    const move = moveText(item);
+    return [item.name, withParticle(item.headline_keyword), move].filter(Boolean).join(' ');
+  }
+
+  // Shape a published analysis like any other news item for the existing widget views.
+  function asNewsItem(item) {
+    return {
+      id: 'ai:' + item.symbol, category: '분석', title: titleText(item),
+      summary: item.lines.join('\n'), body: item.lines.join('\n\n'),
+      source: '개미지티피', published_at: item.generated_at || snapshot?.generated_at || '', time: '',
+      url: '', tickers: ['$' + item.symbol], issues: item.keywords.map(k => '#' + k),
+      industries: item.industry ? [item.industry] : [], ai: item
+    };
+  }
+
+  function newsItems() {
+    return (snapshot?.items || []).filter(item => item.status === 'ok').map(asNewsItem);
+  }
+
+  window.GaemiGTPUsNewsAi = { load, bySymbol, get: () => snapshot, moveText, withParticle, titleText, newsItems };
 }());

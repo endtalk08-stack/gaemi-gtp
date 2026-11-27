@@ -20,12 +20,18 @@ def article(title, hours_ago, url_id, source="연합뉴스", description="요약
             "published_at": (RUN_AT - dt.timedelta(hours=hours_ago)).isoformat()}
 
 
-GOOD = {"headline_keyword": "장기 공급계약 확대",
+GOOD = {"type": "reason", "headline_keyword": "장기 공급계약 확대", "news_headline": "",
         "keywords": ["중국 HBM 경쟁", "장기 공급계약 확대", "AI 메모리 수요"],
         "lines": ["마이크론이 AI 데이터센터용 메모리 장기 공급계약을 확대했어요.",
                   "고객사 조달 안정성이 높아져 메모리 업종 분위기가 좋아졌어요.",
                   "마이크론은 HBM 등 고성능 메모리를 만드는 미국 반도체 기업이에요."],
-        "confidence": "high", "source_ids": [1]}
+        "source_ids": [1]}
+NEWS = {"type": "news", "headline_keyword": "AI 광고 심의", "news_headline": "애플, 아이폰16 AI 기능 광고 심의 착수",
+        "keywords": ["AI 광고 심의", "애플 인텔리전스", "공정위 조사"],
+        "lines": ["공정위가 아이폰16 AI 기능 광고를 심의한다는 소식이 있어요.",
+                  "애플 인텔리전스 기능이 광고와 다르다는 지적이 나온 데 따른 거예요.",
+                  "애플은 아이폰과 맥, 서비스 사업을 하는 미국 기술 기업이에요."],
+        "source_ids": [1]}
 
 
 class SelectArticlesTest(unittest.TestCase):
@@ -43,10 +49,18 @@ class SelectArticlesTest(unittest.TestCase):
         self.assertEqual([a["title"] for a in picked],
                          ["[미국 특징주] 마이크론, HBM 시장서 도전 직면", "Micron raises outlook"])
 
+    def test_short_names_do_not_match_inside_other_words(self):
+        self.assertFalse(job.title_names("릴리바이레드 '러브빔 치크밤', 올리브영 어워즈 1위", "릴리"))
+        self.assertTrue(job.title_names("일라이 릴리, 비만약 판매 호조", "릴리"))
+        self.assertTrue(job.title_names("메타가 AI 안경 신제품 공개", "메타"))
+        self.assertFalse(job.title_names("메타버스 플랫폼 투자 확대", "메타"))
+        self.assertTrue(job.title_names("Lilly raises guidance", "lilly"))
+
 
 class ValidateTest(unittest.TestCase):
-    def test_good_result_passes(self):
+    def test_good_results_pass(self):
         self.assertEqual(job.validate(GOOD, 3), [])
+        self.assertEqual(job.validate(NEWS, 3), [])
 
     def test_rule_violations_are_caught(self):
         cases = {
@@ -55,7 +69,11 @@ class ValidateTest(unittest.TestCase):
             "lines": {**GOOD, "lines": GOOD["lines"][:2]},
             "number_in_lines": {**GOOD, "lines": ["주가가 6.4% 올랐어요.", *GOOD["lines"][1:]]},
             "source_ids": {**GOOD, "source_ids": [9]},
-            "high_without_sources": {**GOOD, "source_ids": []},
+            "type": {**GOOD, "type": "maybe"},
+            "result_keyword": {**GOOD, "keywords": ["앤트로픽 상승", *GOOD["keywords"][1:]],
+                               "headline_keyword": "앤트로픽 상승"},
+            "formal_ending": {**GOOD, "lines": [*GOOD["lines"][:2], "애플은 기술 기업입니다."]},
+            "news_headline": {**NEWS, "news_headline": ""},
         }
         for problem, result in cases.items():
             self.assertIn(problem, job.validate(result, 3), problem)
@@ -99,10 +117,10 @@ class RunTest(unittest.TestCase):
 
     def analyze(self, stock, profiles):
         if stock["symbol"] == "SNDK":
-            return "no_news", None, [], None
+            return "no_news", None, [], None, {"articles": 0}
         articles = [{"title": "마이크론, 장기 공급계약 확대", "url": "https://news.example/1",
                      "source": "제민일보", "_published": RUN_AT}]
-        return "ok", GOOD, articles, 2586
+        return "ok", GOOD, articles, 2586, {"articles": 1, "bodies": 1, "attempts": 1}
 
     def run_job(self, **kw):
         return job.run(RUN_AT, top20=lambda: self.stocks, analyze=self.analyze,
@@ -113,15 +131,21 @@ class RunTest(unittest.TestCase):
         with patch.object(job, "us_trading_day", return_value=dt.date(2026, 11, 25)):
             outcome = self.run_job()
         self.assertEqual(outcome["counts"], {"ok": 1, "no_news": 1})
-        self.assertEqual([key for key, _ in self.uploads], ["news/ai/us/MU.json", "news/ai/us/TOP20.json"])
+        # MU, the list right after MU, then the final complete list.
+        self.assertEqual([key for key, _ in self.uploads],
+                         ["news/ai/us/MU.json", "news/ai/us/TOP20.json", "news/ai/us/TOP20.json"])
+        self.assertFalse(self.uploads[1][1]["complete"])
+        self.assertTrue(self.uploads[2][1]["complete"])
         mu = self.uploads[0][1]
         self.assertEqual(mu["headline_keyword"], "장기 공급계약 확대")
         self.assertEqual(mu["change_pct"], 6.26)                      # number from Kiwoom, not the model
-        self.assertEqual(mu["sources"][0]["url"], "https://news.example/1")
-        top = self.uploads[1][1]
+        self.assertEqual(mu["sources"][0]["url"], "https://news.example/1")   # stored, not shown
+        self.assertEqual(mu["type"], "reason")
+        self.assertEqual(mu["diagnostics"], {"articles": 1, "bodies": 1, "attempts": 1})
+        top = self.uploads[2][1]
         self.assertEqual([i["symbol"] for i in top["items"]], ["MU", "SNDK"])
         self.assertEqual(top["items"][1]["status"], "no_news")
-        self.assertEqual(self.sleeps, [job.PACE_SECONDS])
+        self.assertEqual(self.sleeps, [300])
         state = json.loads(self.state_path.read_text())
         self.assertEqual(state["last_day"], "2026-11-25")
         self.assertIn("MU", state["profiles"])                         # company line reused next time

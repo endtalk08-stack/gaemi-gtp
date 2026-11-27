@@ -438,82 +438,47 @@
       <p class="gnw-summary">${escape(item.summary)}</p>
     </button>`;
   }
-  // ---- AI analysis tab (daily US TOP20 "왜 올랐을까") ----
+  // ---- 분석 tab: 개미지티피 articles on the daily US TOP20, shown like any news ----
   const ai = () => window.GaemiGTPUsNewsAi;
   function aiItems() {
     const q=query.trim().toLowerCase();
-    return (ai()?.get()?.items || []).filter(item => !q || [item.name,item.symbol,item.headline_keyword,
-      ...(item.keywords||[]),...(item.lines||[])].join(' ').toLowerCase().includes(q));
-  }
-  function aiMove(item) {
-    const text=ai()?.moveText(item) || '';
-    const tone=item.change_pct > 0 ? 'gnw-ai-up' : item.change_pct < 0 ? 'gnw-ai-down' : '';
-    return text ? `<span class="${tone}">${escape(text)}</span>` : '';
-  }
-  function aiTime(item) {
-    const date=new Date(item.generated_at || ai()?.get()?.generated_at || '');
-    if (Number.isNaN(date.getTime())) return '';
-    return new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false}).format(date);
+    return (ai()?.newsItems() || []).filter(item => !q || [item.title,item.body,...item.issues,...item.tickers]
+      .join(' ').toLowerCase().includes(q));
   }
   function renderAiListItem(item) {
-    const time=aiTime(item);
-    const headline = item.status === 'ok'
-      ? `<b class="gnw-ai-name">${escape(item.name)}</b> ${escape(ai().withParticle(item.headline_keyword))} ${aiMove(item)}`
-      : `<b class="gnw-ai-name">${escape(item.name)}</b> ${aiMove(item)}`;
-    const summary = item.status === 'ok' ? item.lines[0] : '관련 뉴스가 확인되지 않았어요.';
-    return `<button type="button" class="gnw-item gnw-ai-item" data-gnw-open="ai:${escape(item.symbol)}">
+    const time=listTimeText(item);
+    const data=item.ai;
+    const tone=data.change_pct > 0 ? 'gnw-ai-up' : data.change_pct < 0 ? 'gnw-ai-down' : '';
+    // Reason articles color only the Kiwoom move; news articles read as a plain headline.
+    const title = data.type === 'news' ? escape(item.title)
+      : [escape(data.name), escape(ai().withParticle(data.headline_keyword)),
+         `<span class="${tone}">${escape(ai().moveText(data))}</span>`].join(' ');
+    return `<button type="button" class="gnw-item gnw-ai-item" data-gnw-open="${escape(item.id)}">
       <div class="gnw-list-row">
         <div class="gnw-list-heading">
           ${time ? `<time class="gnw-list-time">${escape(time)}</time>` : ''}
-          <span class="gnw-title">${headline}</span>
+          <span class="gnw-title">${title}</span>
         </div>
       </div>
-      <p class="gnw-summary">${escape(summary)}</p>
+      <p class="gnw-summary">${escape(item.summary)}</p>
     </button>`;
-  }
-  function aiEmpty() {
-    if (!ai()?.get()) return '<div class="gnw-empty"><div>AI 분석을 불러오는 중이에요.</div></div>';
-    return query.trim()
-      ? '<div class="gnw-empty"><div class="gnw-empty-mark">⌕</div><div>검색 결과가 없습니다</div></div>'
-      : '<div class="gnw-empty"><div>AI 분석은 미국 장중 매일 한 번(한국 시간 밤 12시 30분) 업데이트돼요.</div></div>';
   }
   function renderAiList() {
     const rows=aiItems();
-    return rows.length ? rows.map(renderAiListItem).join('') : aiEmpty();
+    if (rows.length) return rows.map(renderAiListItem).join('');
+    if (!ai()?.get()) return '<div class="gnw-empty"><div>기사를 불러오는 중이에요.</div></div>';
+    return query.trim()
+      ? '<div class="gnw-empty"><div class="gnw-empty-mark">⌕</div><div>검색 결과가 없습니다</div></div>'
+      : '<div class="gnw-empty"><div>미국장 거래대금 상위 종목 기사는 한국 시간 밤 12시 30분부터 5분마다 올라와요.</div></div>';
   }
-  function renderAiDetail(host, symbol) {
-    const item=(ai()?.get()?.items || []).find(x=>x.symbol===symbol);
-    if(!item){detailId=null;renderList(host);return;}
-    const date=new Date(item.generated_at || '');
-    const when=Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(date) + ' 기준';
-    const why=item.change_pct < 0 ? '왜 떨어졌을까' : '왜 올랐을까';
-    const sourceTime=value=>{const d=new Date(value||'');return Number.isNaN(d.getTime())?'':new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);};
-    host.innerHTML=`
-      <button type="button" class="gnw-back" data-gnw-back aria-label="분석 목록으로 돌아가기">←</button>
-      <div class="gnw-detail-card">
-        ${item.status==='ok' ? `<div class="gnw-ai-eyebrow">${escape(ai().withParticle(item.headline_keyword))}</div>` : ''}
-        <h3 class="gnw-detail-title"><b>${escape(item.name)}</b> ${aiMove(item)}</h3>
-        <div class="gnw-meta">
-          <span class="gnw-detail-source">AI 분석 · ${escape(item.symbol)}</span>
-          <time class="gnw-time">${escape(when)}</time>
-        </div>
-      </div>
-      ${item.status==='ok' ? `
-      <section class="gnw-detail-section"><h4>${why}</h4>
-        <ul class="gnw-ai-lines">${item.lines.map(line=>`<li>${escape(line)}</li>`).join('')}</ul>
-      </section>
-      <section class="gnw-detail-section"><h4>핵심 키워드</h4>
-        <div class="gnw-chips">${item.keywords.map(k=>`<span class="gnw-chip">#${escape(k)}</span>`).join('')}</div>
-      </section>
-      ${item.sources?.length ? `<section class="gnw-detail-section"><h4>근거 뉴스 ${item.sources.length}개</h4>
-        <div class="gnw-ai-sources">${item.sources.map(src=>`<a class="gnw-ai-source" href="${escape(src.url)}" target="_blank" rel="noopener noreferrer">
-          <span class="gnw-ai-source-meta">${escape([src.source, sourceTime(src.published_at)].filter(Boolean).join(' · '))}</span>
-          <span class="gnw-ai-source-title">${escape(src.title)}</span></a>`).join('')}</div>
-      </section>` : ''}` : `
-      <section class="gnw-detail-section"><h4>${why}</h4>
-        <p class="gnw-summary">최근 3일 안에 이 종목이 주인공인 뉴스가 확인되지 않았어요.</p>
-      </section>`}
-    `;
+  let aiRefreshTimer = null;
+  function refreshAi() {
+    ai()?.load()?.then(() => { if (selected===AI_CATEGORY && detailId===null) render(); });
+  }
+  function syncAiRefresh() {
+    const active = selected===AI_CATEGORY && Boolean(widget());
+    if (active && !aiRefreshTimer) aiRefreshTimer = setInterval(refreshAi, 60000);
+    if (!active && aiRefreshTimer) { clearInterval(aiRefreshTimer); aiRefreshTimer = null; }
   }
 
   function renderList(host) {
@@ -546,8 +511,10 @@
     });
   }
   function renderDetail(host) {
-    if(String(detailId).startsWith('ai:')){renderAiDetail(host,String(detailId).slice(3));return;}
-    const item=currentItems().find(x=>x.id===detailId);
+    // 분석 articles use the same detail view as every other news item.
+    const item=String(detailId).startsWith('ai:')
+      ? (ai()?.newsItems() || []).find(x=>x.id===detailId)
+      : currentItems().find(x=>x.id===detailId);
     if(!item){detailId=null;renderList(host);return;}
     const chips=(arr)=>arr?.length ? arr.map(x=>`<span class="gnw-chip">${escape(x)}</span>`).join('') : '';
     const paragraphs=String(item.body||'').split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
@@ -604,7 +571,8 @@
     const cat=e.target.closest('[data-gnw-cat]');
     if(cat){
       selected=cat.dataset.gnwCat;visible=5;render();
-      if(selected===AI_CATEGORY) ai()?.load()?.then(()=>{ if(selected===AI_CATEGORY && detailId===null) render(); });
+      if(selected===AI_CATEGORY) refreshAi();
+      syncAiRefresh();
       return;
     }
     const open=e.target.closest('[data-gnw-open]');
