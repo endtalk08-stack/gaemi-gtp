@@ -1,4 +1,4 @@
-/* Loader for US TOP20 price-move headlines ("엔비디아, 5% 넘게 상승"), shown under 종목 and 전체. */
+/* Loader for US TOP20 price-move headlines ("엔비디아가 상승률 5%를 돌파했어요"), shown under 종목 and 전체. */
 (function () {
   'use strict';
   const ENDPOINT = '/news/moves/us';

@@ -37,7 +37,7 @@ const macro = { ok: true, items: [
     url: 'https://www.bea.gov/gdp', published_at: '2026-11-25T13:30:00Z' }] };
 
 const moves = { ok: true, items: [
-  { id: 'move:20261125-NVDA-up5', symbol: 'NVDA', title: '엔비디아, 5% 넘게 상승', published_at: '2026-11-25T15:05:00Z' }] };
+  { id: 'move:20261125-NVDA-up5', symbol: 'NVDA', title: '엔비디아가 상승률 5%를 돌파했어요', published_at: '2026-11-25T15:05:00Z' }] };
 
 async function widget(t) {
   const dom = new JSDOM('<div data-central-widget-id="news-feed"><section data-gnw-root></section></div>',
@@ -118,7 +118,7 @@ test('전체 shows 개미지티피 articles and no design-file sample news', asy
   const titles = [...root.querySelectorAll('.gnw-item .gnw-title')].map(n => n.textContent);
   assert.deepEqual(titles, ['연준, FOMC 성명 발표', '애플, 아이폰16 AI 기능 광고 심의 착수',
                             '마이크론, AI 메모리 장기 공급계약 확대', '테슬라 로보택시 일정 지연',
-                            '엔비디아, 5% 넘게 상승', '2026년 3분기 국내총생산(GDP, 2차 추정치)']);   // undated AI uses the run time   // newest first; undated last
+                            '엔비디아가 상승률 5%를 돌파했어요', '2026년 3분기 국내총생산(GDP, 2차 추정치)']);   // undated AI uses the run time   // newest first; undated last
   assert.ok(!root.textContent.includes('연준 의장 긴급 기자회견'));
   assert.ok(!read('frontend/widgets/news/news-widget.js').includes('SOURCE_PREVIEW_ITEMS'));
 });
@@ -189,7 +189,7 @@ test('price-move headlines appear under 종목 with the stock and its intro', as
   root.querySelector('[data-gnw-cat="종목"]').click();
   await new Promise(resolve => setTimeout(resolve, 20));
   const row = root.querySelector('.gnw-item');
-  assert.equal(row.querySelector('.gnw-title').textContent, '엔비디아, 5% 넘게 상승');
+  assert.equal(row.querySelector('.gnw-title').textContent, '엔비디아가 상승률 5%를 돌파했어요');
   assert.equal(row.querySelector('.gnw-summary'), null);
   row.click();
   assert.equal(root.querySelector('.gnw-detail-source').textContent, '개미지티피');

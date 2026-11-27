@@ -3,11 +3,12 @@
 Every minute during the regular session (gaemigtp-us-move-news.timer) the live
 Kiwoom change rates of the TOP20 are compared with the previous check:
 
-  crossed +2/+5/+10%      -> "엔비디아, 5% 넘게 상승"
-  crossed -2/-5/-10%      -> "엔비디아, 5% 넘게 하락"
-  back under +2% after 2% -> "엔비디아, 상승폭 축소…2% 미만으로 후퇴"
-  back above -2% after -2%-> "엔비디아, 하락폭 축소…-2% 이내로 회복"
-  sign change after ±1%   -> "엔비디아, 하락 전환" / "상승 전환"
+  crossed +2/+5/+10%      -> "엔비디아가 상승률 5%를 돌파했어요"
+  crossed -2/-5/-10%      -> "테슬라가 하락률 5%를 돌파했어요"
+  back under +2% after 2% -> "엔비디아가 상승폭을 줄여 2% 아래로 내려왔어요"
+  back above -2% after -2%-> "테슬라가 하락폭을 줄여 -2% 위로 회복했어요"
+  sign change after ±1%   -> "애플이 하락 전환했어요" / "상승 전환했어요"
+Sentences are 해요체 so they can be read aloud on broadcast.
 
 Each event is published at most once per stock per day, with a 0.3%p margin so
 a price hovering on a line does not repeat it. Output: R2
@@ -21,6 +22,7 @@ import sys
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from backend.haeyo import subject
 from backend.us_news_ai_daily import RANKING_URL, upload_json, us_trading_day, read_state, write_state
 
 NEW_YORK = ZoneInfo("America/New_York")
@@ -52,6 +54,7 @@ def in_session(now):
 def events(name, prev, cur, done):
     """Headlines for one stock between two checks. `done` holds today's fired event keys."""
     out = []
+    who = subject(name)
 
     def fire(key, text):
         if key not in done:
@@ -59,18 +62,18 @@ def events(name, prev, cur, done):
             out.append((key, text))
     for level in LEVELS:
         if cur >= level and prev < level:
-            fire("up%g" % level, "%s, %g%% 넘게 상승" % (name, level))
+            fire("up%g" % level, "%s 상승률 %g%%를 돌파했어요" % (who, level))
         if cur <= -level and prev > -level:
-            fire("down%g" % level, "%s, %g%% 넘게 하락" % (name, level))
+            fire("down%g" % level, "%s 하락률 %g%%를 돌파했어요" % (who, level))
     first = LEVELS[0]
     if "up%g" % first in done and prev >= first and cur < first - MARGIN:
-        fire("fade_up", "%s, 상승폭 축소…%g%% 미만으로 후퇴" % (name, first))
+        fire("fade_up", "%s 상승폭을 줄여 %g%% 아래로 내려왔어요" % (who, first))
     if "down%g" % first in done and prev <= -first and cur > -first + MARGIN:
-        fire("fade_down", "%s, 하락폭 축소…-%g%% 이내로 회복" % (name, first))
+        fire("fade_down", "%s 하락폭을 줄여 -%g%% 위로 회복했어요" % (who, first))
     if prev >= 1.0 and cur < -MARGIN:
-        fire("turn_down", "%s, 하락 전환" % name)
+        fire("turn_down", "%s 하락 전환했어요" % who)
     if prev <= -1.0 and cur > MARGIN:
-        fire("turn_up", "%s, 상승 전환" % name)
+        fire("turn_up", "%s 상승 전환했어요" % who)
     return out
 
 

@@ -32,6 +32,8 @@ import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 
+from backend.haeyo import haeyo
+
 STATE_PATH = Path("/var/lib/gaemigtp-news/us-macro-news-state.json")
 OBJECT_KEY = "news/stocks/us/MACROFEED.json"
 KEEP_ITEMS = 200
@@ -265,6 +267,20 @@ def run(now=None, *, collector=collect, translator=translate, upload=upload_json
                and now - dt.datetime.fromisoformat(row["published_at"]) <= MAX_AGE]
     add_summaries([row for row in fresh if row.get("want_summary")] + pending, page_fetcher)
     todo = [row for row in fresh + pending if row.get("summary_en") and not row.get("summary")]
+    # Items published before 해요체 endings: convert once, no new translation needed.
+    restyled = False
+    for row in items:
+        if not row.get("haeyo"):
+            row["title"], row["haeyo"], restyled = haeyo(row.get("title", "")), True, True
+            if row.get("summary"):
+                row["summary"] = haeyo(row["summary"])
+    for row in fresh:
+        row["haeyo"] = True
+    if restyled and not fresh and not todo:
+        upload({"ok": True, "generated_at": now.isoformat(), "items": items}, OBJECT_KEY)
+        write_state(dict(state, items=items), state_path)
+        print("[us-macro-news] restyled=%d" % len(items), flush=True)
+        return {"status": "restyled", "new": 0}
     if not fresh and not todo:
         if any(row.get("summary_tries") for row in pending):
             write_state(dict(state, items=items), state_path)
@@ -280,9 +296,9 @@ def run(now=None, *, collector=collect, translator=translate, upload=upload_json
         print("[us-macro-news] translate_error=" + str(exc), flush=True)
         return {"status": "translate_failed", "new": len(fresh)}
     for row, text in zip(fresh, korean[:len(fresh)]):
-        row["title"] = text[:200]
+        row["title"] = haeyo(text)[:200]
     for row, text in zip(todo, korean[len(fresh):]):
-        row["summary"] = text[:900]
+        row["summary"] = haeyo(text)[:900]
     items = sorted(items + fresh, key=lambda r: r["published_at"], reverse=True)[:KEEP_ITEMS]
     upload({"ok": True, "generated_at": now.isoformat(), "items": items}, OBJECT_KEY)
     state["items"] = items

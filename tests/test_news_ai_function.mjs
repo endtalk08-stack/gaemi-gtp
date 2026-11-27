@@ -78,7 +78,7 @@ test('price-move headlines: well-formed items only', async () => {
     return data === null ? null : { json: async () => data };
   } } });
   const body = await (await moves({ env: env({ ok: true, items: [
-    { id: '20261125-NVDA-up5', symbol: 'NVDA', title: '엔비디아, 5% 넘게 상승', published_at: '2026-11-25T15:05:00Z' },
+    { id: '20261125-NVDA-up5', symbol: 'NVDA', title: '엔비디아가 상승률 5%를 돌파했어요', published_at: '2026-11-25T15:05:00Z' },
     { id: 'x', symbol: 'bad', title: '잘못', published_at: '2026-11-25T15:05:00Z' },
   ] }) })).json();
   assert.deepEqual(body.items.map(i => i.id), ['move:20261125-NVDA-up5']);

@@ -165,5 +165,29 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(sent, [])                              # nothing translated twice
 
 
+class HaeyoTest(unittest.TestCase):
+    def test_endings_for_broadcast(self):
+        from backend.haeyo import haeyo
+        self.assertEqual(haeyo("실질 GDP는 연율 4.3% 증가했습니다. 2분기에는 2.2% 증가했다."),
+                         "실질 GDP는 연율 4.3% 증가했어요. 2분기에는 2.2% 증가했어요.")
+        self.assertEqual(haeyo("금리는 3.88%입니다. 위험이 있다. 이는 수요에 따른 것이다."),
+                         "금리는 3.88%예요. 위험이 있어요. 이는 수요에 따른 거예요.")
+        self.assertEqual(haeyo("2026년 10월 개인 소득 및 지출"), "2026년 10월 개인 소득 및 지출")
+
+    def test_old_items_are_restyled_once(self):
+        state = Path(tempfile.mkdtemp()) / "state.json"
+        state.write_text(json.dumps({"items": [{"id": "d" * 16, "source": "美 경제분석국", "title": "제목",
+            "summary": "4.3% 증가했다.", "summary_en": "x", "title_en": "t", "url": "https://www.bea.gov/a",
+            "published_at": NOW.isoformat()}]}), encoding="utf-8")
+        uploads = []
+        out = job.run(NOW, collector=lambda now: [], translator=lambda t: (t, "deepl"),
+                      upload=lambda payload, key: uploads.append(payload), state_path=state)
+        self.assertEqual(out["status"], "restyled")
+        self.assertEqual(uploads[0]["items"][0]["summary"], "4.3% 증가했어요.")
+        self.assertEqual(job.run(NOW, collector=lambda now: [], translator=lambda t: (t, "deepl"),
+                                 upload=lambda payload, key: uploads.append(payload), state_path=state)["status"],
+                         "unchanged")
+
+
 if __name__ == "__main__":
     unittest.main()

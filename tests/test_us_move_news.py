@@ -12,12 +12,12 @@ OPEN = dt.datetime(2026, 11, 25, 15, 0, tzinfo=dt.timezone.utc)      # 10:00 New
 class EventsTest(unittest.TestCase):
     def test_crossing_levels_and_fading(self):
         done = set()
-        self.assertEqual(job.events("엔비디아", 1.5, 2.4, done), [("up2", "엔비디아, 2% 넘게 상승")])
-        self.assertEqual(job.events("엔비디아", 2.4, 5.1, done), [("up5", "엔비디아, 5% 넘게 상승")])
+        self.assertEqual(job.events("엔비디아", 1.5, 2.4, done), [("up2", "엔비디아가 상승률 2%를 돌파했어요")])
+        self.assertEqual(job.events("엔비디아", 2.4, 5.1, done), [("up5", "엔비디아가 상승률 5%를 돌파했어요")])
         self.assertEqual(job.events("엔비디아", 5.1, 1.6, done),
-                         [("fade_up", "엔비디아, 상승폭 축소…2% 미만으로 후퇴")])
+                         [("fade_up", "엔비디아가 상승폭을 줄여 2% 아래로 내려왔어요")])
         self.assertEqual(job.events("엔비디아", 1.6, 2.2, done), [])        # once per day
-        self.assertEqual(job.events("엔비디아", 1.2, -0.5, done), [("turn_down", "엔비디아, 하락 전환")])
+        self.assertEqual(job.events("엔비디아", 1.2, -0.5, done), [("turn_down", "엔비디아가 하락 전환했어요")])
 
     def test_hovering_on_a_line_does_not_repeat_or_fade_early(self):
         done = {"up2"}
@@ -25,9 +25,10 @@ class EventsTest(unittest.TestCase):
 
     def test_down_moves(self):
         done = set()
-        self.assertEqual(job.events("테슬라", -1.0, -2.5, done), [("down2", "테슬라, 2% 넘게 하락")])
+        self.assertEqual(job.events("테슬라", -1.0, -2.5, done), [("down2", "테슬라가 하락률 2%를 돌파했어요")])
         self.assertEqual(job.events("테슬라", -2.5, -1.5, done),
-                         [("fade_down", "테슬라, 하락폭 축소…-2% 이내로 회복")])
+                         [("fade_down", "테슬라가 하락폭을 줄여 -2% 위로 회복했어요")])
+        self.assertEqual(job.events("마이크론", -1.2, 0.4, set()), [("turn_up", "마이크론이 상승 전환했어요")])
 
 
 class RunTest(unittest.TestCase):
@@ -45,7 +46,7 @@ class RunTest(unittest.TestCase):
         self.assertEqual(self.run_at(OPEN + dt.timedelta(minutes=1), 5.4)["new"], 1)
         key, payload = self.uploads[0]
         self.assertEqual(key, "news/stocks/us/MOVEFEED.json")
-        self.assertEqual(payload["items"][0]["title"], "엔비디아, 5% 넘게 상승")
+        self.assertEqual(payload["items"][0]["title"], "엔비디아가 상승률 5%를 돌파했어요")
         self.assertEqual(payload["items"][0]["symbol"], "NVDA")
 
     def test_outside_regular_hours_nothing_happens(self):

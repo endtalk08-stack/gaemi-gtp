@@ -1,5 +1,5 @@
 // Cloudflare Pages: US TOP20 price-move headlines written to R2 by the DigitalOcean
-// job backend/us_move_news.py ("엔비디아, 5% 넘게 상승"). Read-only.
+// job backend/us_move_news.py ("엔비디아가 상승률 5%를 돌파했어요"). Read-only.
 const OBJECT_KEY = 'news/stocks/us/MOVEFEED.json';
 const SYMBOL = /^[A-Z][A-Z0-9.-]{0,14}$/;
 const text = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
