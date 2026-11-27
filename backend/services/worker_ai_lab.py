@@ -98,7 +98,7 @@ def lab_config():
         return jsonify({"ok": False, "error": "unauthorized_or_disabled"}), 403
     return jsonify({"ok": True, "models": CONFIG,
                     "mode": "independent_test_only",
-                    "provider": "Render Groq key; identical live DO model/prompt defaults"})
+                    "provider": "DigitalOcean Groq key; same model/prompt defaults as the live API"})
 
 
 @worker_ai_lab_bp.post("/api/worker-ai-test/run")
