@@ -3,7 +3,7 @@
 No news collection, Neon writes, worker scheduling, or production AI changes.
 The default prompts/model parameters reflect read-only inspection of the live
 DigitalOcean worker on 2026-10-27 (not the potentially older ops-branch files).
-Provider requests run independently on Render with its configured Groq key.
+Provider requests run in the DigitalOcean-hosted analysis API with its configured Groq key.
 """
 from __future__ import annotations
 
