@@ -93,16 +93,15 @@ jobs:
           grep -Fq 'data-panel-workspace-view="disclosures"' frontend/shell/right-panel/right-panel-tabs.js
           grep -q 'right-panel-tabs.js?v=20261114-detach-right-news-v1' frontend/index.html
 
+  # Pull requests only: a preview URL for people to open (Cloudflare Access
+  # login). It never gates production; main deploys straight after validate.
   preview:
     needs: validate
-    outputs:
-      access_protected: ${{ steps.preview_check.outputs.protected }}
-      verified: ${{ steps.preview_check.outputs.verified }}
-    if: >-
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -115,13 +114,6 @@ jobs:
           cp -a frontend functions "$deploy_dir/"
           diff -qr frontend "$deploy_dir/frontend"
           diff -qr functions "$deploy_dir/functions"
-      - name: Upload the exact files that will be deployed
-        uses: actions/upload-artifact@v4
-        with:
-          name: gaemigtp-pages-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/gaemigtp-pages-deploy/
-          if-no-files-found: error
-          retention-days: 2
       - name: Deploy the candidate to the existing Pages preview
         id: deploy
         uses: cloudflare/wrangler-action@v3
@@ -134,7 +126,7 @@ jobs:
           workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
           command: >-
             pages deploy frontend --project-name gaemigtp-main
-            --branch ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'github-pages-preview' }}
+            --branch pr-${{ github.event.pull_request.number }}
             --commit-hash ${{ github.sha }}
       - name: Detect preview Access protection and verify deployed assets
         id: preview_check
@@ -179,14 +171,22 @@ jobs:
         run: |
           echo "[Open the Pages preview]($DEPLOYMENT_URL)" >> "$GITHUB_STEP_SUMMARY"
           if [ "$ACCESS_PROTECTED" = "true" ]; then
-            echo "Preview deployed, but automated checks were blocked by Cloudflare Access (open it while signed in)." >> "$GITHUB_STEP_SUMMARY"
-            echo "On main, production still deploys and is then verified byte-for-byte against the live site." >> "$GITHUB_STEP_SUMMARY"
+            echo "Preview is behind Cloudflare Access: open it while signed in with an allowed account." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Verified: frontend assets, Pages Functions, instrument metadata, and R2-backed NVDA daily chart." >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Post the preview link on the pull request
+        if: always() && steps.deploy.outputs.deployment-url != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            -f body="미리보기: $DEPLOYMENT_URL (커밋 ${GITHUB_SHA::7}, Cloudflare 로그인 필요 · 실제 사이트에는 main에 합칠 때만 배포)" > /dev/null
 
   production:
-    needs: preview
+    needs: validate
     # A push to main deploys automatically, as before 2026-11-27. The manual
     # run remains available for redeploying main. Every production deploy is
     # verified byte-for-byte and through Pages Functions below.
@@ -200,15 +200,18 @@ jobs:
       group: gaemigtp-main-pages-production
       cancel-in-progress: false
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: gaemigtp-pages-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/gaemigtp-pages-deploy
-      - name: Verify downloaded artifact structure
+          ref: ${{ github.sha }}
+      - name: Prepare the deployment files from this commit
         run: |
-          test -s "$RUNNER_TEMP/gaemigtp-pages-deploy/frontend/index.html"
-          test -d "$RUNNER_TEMP/gaemigtp-pages-deploy/functions"
-      - name: Deploy the exact preview-tested artifact to production
+          deploy_dir="$RUNNER_TEMP/gaemigtp-pages-deploy"
+          rm -rf "$deploy_dir"
+          mkdir -p "$deploy_dir"
+          cp -a frontend functions "$deploy_dir/"
+          test -s "$deploy_dir/frontend/index.html"
+          test -d "$deploy_dir/functions"
+      - name: Deploy this main commit to production
         id: deploy
         uses: cloudflare/wrangler-action@v3
         env:
