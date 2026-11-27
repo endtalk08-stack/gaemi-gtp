@@ -35,7 +35,7 @@ class KiwoomCentralQuoteTests(unittest.TestCase):
             self.assertIsNone(quote_api.read_fresh_us_quote("UNKNOWN"))
             self.assertIsNone(quote_api.read_fresh_us_quote("../MU"))
 
-    def test_analysis_uses_do_quote_cache_not_a_render_relay(self):
+    def test_analysis_uses_do_quote_cache_without_an_external_relay(self):
         history = [
             {"date": "2026-10-21", "close": 855.0, "high": 860.0, "low": 850.0, "volume": 200},
             {"date": "2026-10-22", "close": 856.49, "high": 860.0, "low": 840.0, "volume": 200},
