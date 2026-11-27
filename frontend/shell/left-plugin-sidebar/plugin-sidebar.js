@@ -79,7 +79,12 @@
       }
       if (window.GaemiGTPWidgetDock?.add) {
         const added = window.GaemiGTPWidgetDock.add(id);
-        if (added) window.enterChatWorkspace?.();
+        if (added) {
+          // Show the widget on the News screen; stay in an open chat conversation.
+          const main = document.getElementById('mainContent');
+          const onHome = !document.getElementById('mainHeroView')?.classList.contains('hidden');
+          if (main?.classList.contains('is-news-view') || onHome) window.GaemiCenterNews?.showNews?.();
+        }
         render();
       }
     });
