@@ -918,7 +918,7 @@ def ai_test_chat():
                 return jsonify({"ok": False, "error": "ai_test_not_configured"}), 503
             # Private single-admin preview: rely on each provider's real
             # account/project quotas. Do not fabricate local daily/minute
-            # limits, which would also reset on a Render redeployment.
+            # limits, which also reset when the API process restarts.
             # Production memberships require a separate shared quota policy.
 
         history = body.get("history") or []
