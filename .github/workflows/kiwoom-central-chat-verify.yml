@@ -5,15 +5,17 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/kiwoom-central-chat-verify.yml'
-      - 'backend/services/us_price_push.py'
+      - 'backend/kiwoom_us_top20_api.py'
+      - 'app.py'
       - 'backend/services/stock_analysis.py'
       - 'backend/services/engine.py'
       - 'tests/test_kiwoom_central_quotes.py'
+      - 'tests/test_chat_stock_name_routing.cjs'
   push:
     branches: [main]
     paths:
       - '.github/workflows/kiwoom-central-chat-verify.yml'
-      - 'backend/services/us_price_push.py'
+      - 'backend/kiwoom_us_top20_api.py'
       - 'backend/services/stock_analysis.py'
       - 'backend/services/engine.py'
       - 'backend/services/ai_test.py'
@@ -27,7 +29,6 @@ permissions:
 
 jobs:
   quote-verification:
-    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
@@ -37,11 +38,14 @@ jobs:
           python-version: '3.11'
       - name: Python syntax
         run: |
-          python -m py_compile backend/services/us_price_push.py backend/services/stock_analysis.py backend/services/engine.py backend/services/ai_test.py
+          python -m py_compile backend/kiwoom_us_top20_api.py app.py backend/services/stock_analysis.py backend/services/engine.py backend/services/ai_test.py
       - name: Frontend syntax
         run: |
           node --check frontend/shell/center-chat/analysis-flow.js
           node --check frontend/js/analysis-api.js
+          node --check frontend/shell/center-chat/ai-chat.js
+          node --check frontend/shell/center-chat/search-controls.js
+          node --test tests/test_chat_stock_name_routing.cjs
       - name: Source-isolated price tests
         run: |
           python -m unittest discover -s tests -p 'test_kiwoom_central_quotes.py' -v

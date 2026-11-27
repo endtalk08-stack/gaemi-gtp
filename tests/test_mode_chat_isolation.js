@@ -77,7 +77,7 @@ function boot(store) {
     addEventListener: () => {},
   };
   const window = {
-    location: { hostname:'gaemi-gtp.onrender.com', origin:'https://gaemi-gtp.onrender.com' },
+    location: { hostname:'gaemigtp-main.pages.dev', origin:'https://gaemigtp-main.pages.dev' },
     addEventListener: () => {},
     innerWidth: 1400,
     GaemiGTPCenterAIChat: {
