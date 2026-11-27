@@ -60,6 +60,7 @@ SYSTEM_PROMPT = """너는 미국 주식 뉴스를 한국 개인투자자에게 �
 2. keywords는 항상 정확히 3개. 각 4~12자 명사구. 기사에 실제로 나온 사건·재료만.
    예: "차세대 GPU 기대", "목표가 상향", "AI 서버 투자"
    "주가 상승", "주가 폭등", "급등", "하락" 같은 결과 표현은 키워드로 쓰지 마.
+   키워드에 회사 이름은 넣지 마. (나쁜 예: "앤트로픽 상승", "엔비디아 옴니버스 호환")
 3. headline_keyword는 keywords 중 주가 움직임의 가장 직접적인 이유 1개를 그대로 복사.
 4. lines는 정확히 3개, 각 1문장, 해요체(~했어요, ~이에요), 60자 안팎. "~습니다"체는 쓰지 마.
    type이 "reason"이면
@@ -69,8 +70,9 @@ SYSTEM_PROMPT = """너는 미국 주식 뉴스를 한국 개인투자자에게 �
    - lines[0]: 가장 중요한 소식 ("~한다는 소식이 있어요" 형태)
    - lines[1]: 그 소식의 배경이나 의미
    - lines[2]: 회사 소개 (두 type 모두 같음. company_profile이 있으면 그대로, 없으면 무슨 회사인지 1문장)
-   news_headline: type이 "news"일 때 기사 제목처럼 쓴 한 줄 (종목명 포함, 35자 이내, 숫자 없이).
-   type이 "reason"이면 빈 문자열.
+   headline: 기사 제목 한 줄. "회사명, 핵심 내용" 형태로 회사명은 한 번만, 35자 이내.
+   reason이면 원인을, news면 소식을 담아. 숫자·퍼센트와 상승·하락·급등·급락 같은 주가 표현은 쓰지 마.
+   예: "브로드컴, UBS '반등 여력 충분' 평가", "테슬라, 독일 정밀기계 기업 EMAG 인수 추진"
 5. 숫자(주가, 등락률, 퍼센트)는 쓰지 마. 숫자는 화면이 따로 붙여.
 6. 기사에 없는 내용을 지어내지 마.
 7. 다른 종목이 주인공인 기사는 근거로 쓰지 마.
@@ -82,11 +84,11 @@ RESPONSE_SCHEMA = {
     "schema": {
         "type": "object",
         "additionalProperties": False,
-        "required": ["type", "headline_keyword", "news_headline", "keywords", "lines", "source_ids"],
+        "required": ["type", "headline", "headline_keyword", "keywords", "lines", "source_ids"],
         "properties": {
             "type": {"type": "string", "enum": ["reason", "news", "none"]},
             "headline_keyword": {"type": "string"},
-            "news_headline": {"type": "string"},
+            "headline": {"type": "string"},
             "keywords": {"type": "array", "items": {"type": "string"}},
             "lines": {"type": "array", "items": {"type": "string"}},
             "source_ids": {"type": "array", "items": {"type": "integer"}},
@@ -280,7 +282,10 @@ def build_user_message(stock, articles, company_profile=None):
 RESULT_WORDS = re.compile(r"(?:주가\s*)?(?:상승|하락|급등|급락|폭등|폭락|반등)$")
 
 
-def validate(result, article_count):
+MOVE_WORDS = re.compile(r"상승|하락|급등|급락|폭등|폭락|반등|강세|약세")
+
+
+def validate(result, article_count, company_terms=()):
     problems = []
     if not isinstance(result, dict):
         return ["not_object"]
@@ -293,6 +298,8 @@ def validate(result, article_count):
         problems.append("keywords")
     elif any(RESULT_WORDS.search(k.strip()) for k in keywords):
         problems.append("result_keyword")
+    elif any(term in k.lower() for k in keywords for term in company_terms if len(term) >= 2):
+        problems.append("company_in_keyword")
     if result.get("headline_keyword") not in (keywords or []):
         problems.append("headline_keyword")
     lines = result.get("lines")
@@ -304,10 +311,10 @@ def validate(result, article_count):
             problems.append("number_in_lines")
         if any(re.search(r"(?:습니다|입니다|됩니다)\.?$", line.strip()) for line in lines):
             problems.append("formal_ending")
-    headline = result.get("news_headline")
-    if kind == "news" and (not isinstance(headline, str) or not 5 <= len(headline.strip()) <= 60
-                           or re.search(r"\d+(?:\.\d+)?\s*%", headline)):
-        problems.append("news_headline")
+    headline = result.get("headline")
+    if (not isinstance(headline, str) or not 5 <= len(headline.strip()) <= 40
+            or re.search(r"\d+(?:\.\d+)?\s*%", headline) or MOVE_WORDS.search(headline)):
+        problems.append("headline")
     ids = result.get("source_ids")
     if not isinstance(ids, list) or not ids or any(type(i) is not int or not 1 <= i <= article_count for i in ids):
         problems.append("source_ids")
@@ -363,7 +370,7 @@ def stock_payload(stock, day, now, *, status, result=None, articles=(), tokens=N
         payload.update({
             "type": result["type"],
             "headline_keyword": result["headline_keyword"].strip(),
-            "news_headline": result["news_headline"].strip() if result["type"] == "news" else "",
+            "headline": result["headline"].strip(),
             "keywords": [k.strip() for k in result["keywords"]],
             "lines": [l.strip() for l in result["lines"]],
             # Stored for checking only; the site never shows these sources.
@@ -413,7 +420,7 @@ def analyze_stock(stock, profiles, *, fetch=None, reader=None, groq=call_groq, n
         if isinstance(result, dict) and result.get("type") == "none":
             # Only market wraps that restate the move: nothing to publish.
             return "no_news", None, articles, tokens, diagnostics
-        problems = validate(result, len(articles))
+        problems = validate(result, len(articles), company_terms=title_terms(stock))
         if not problems:
             return "ok", result, articles, tokens, diagnostics
         diagnostics["problems"] = problems

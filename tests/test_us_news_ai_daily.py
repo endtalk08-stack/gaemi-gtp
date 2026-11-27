@@ -20,13 +20,13 @@ def article(title, hours_ago, url_id, source="연합뉴스", description="요약
             "published_at": (RUN_AT - dt.timedelta(hours=hours_ago)).isoformat()}
 
 
-GOOD = {"type": "reason", "headline_keyword": "장기 공급계약 확대", "news_headline": "",
+GOOD = {"type": "reason", "headline": "마이크론, AI 메모리 장기 공급계약 확대", "headline_keyword": "장기 공급계약 확대",
         "keywords": ["중국 HBM 경쟁", "장기 공급계약 확대", "AI 메모리 수요"],
         "lines": ["마이크론이 AI 데이터센터용 메모리 장기 공급계약을 확대했어요.",
                   "고객사 조달 안정성이 높아져 메모리 업종 분위기가 좋아졌어요.",
                   "마이크론은 HBM 등 고성능 메모리를 만드는 미국 반도체 기업이에요."],
         "source_ids": [1]}
-NEWS = {"type": "news", "headline_keyword": "AI 광고 심의", "news_headline": "애플, 아이폰16 AI 기능 광고 심의 착수",
+NEWS = {"type": "news", "headline_keyword": "AI 광고 심의", "headline": "애플, 아이폰16 AI 기능 광고 심의 착수",
         "keywords": ["AI 광고 심의", "애플 인텔리전스", "공정위 조사"],
         "lines": ["공정위가 아이폰16 AI 기능 광고를 심의한다는 소식이 있어요.",
                   "애플 인텔리전스 기능이 광고와 다르다는 지적이 나온 데 따른 거예요.",
@@ -86,10 +86,18 @@ class ValidateTest(unittest.TestCase):
             "result_keyword": {**GOOD, "keywords": ["앤트로픽 상승", *GOOD["keywords"][1:]],
                                "headline_keyword": "앤트로픽 상승"},
             "formal_ending": {**GOOD, "lines": [*GOOD["lines"][:2], "애플은 기술 기업입니다."]},
-            "news_headline": {**NEWS, "news_headline": ""},
+            "headline": {**NEWS, "headline": ""},
+            "move_in_headline": None,
+            "company_in_keyword": None,
         }
         for problem, result in cases.items():
+            if result is None:
+                continue
             self.assertIn(problem, job.validate(result, 3), problem)
+        self.assertIn("headline", job.validate({**GOOD, "headline": "앤트로픽, 기술주 반등에 상승"}, 3))
+        self.assertIn("company_in_keyword", job.validate(
+            {**GOOD, "keywords": ["엔비디아 옴니버스 호환", *GOOD["keywords"][1:]],
+             "headline_keyword": "엔비디아 옴니버스 호환"}, 3, company_terms={"엔비디아"}))
 
 
 class CallGroqTest(unittest.TestCase):

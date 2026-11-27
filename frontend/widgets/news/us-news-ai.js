@@ -49,7 +49,7 @@
   // Title shown in both the list and the existing detail view: "브로드컴 UBS 상승 가능성".
   // No change rate: the price at analysis time is not the price when the news broke.
   function titleText(item) {
-    if (item?.type === 'news') return item.news_headline;
+    if (item?.headline) return item.headline;
     return [item.name, item.headline_keyword].filter(Boolean).join(' ');
   }
 

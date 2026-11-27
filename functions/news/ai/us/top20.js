@@ -22,8 +22,9 @@ function cleanItem(raw) {
     if (keywords.length !== 3 || lines.length !== 3 || !keywords.includes(headline)) return null;
     item.type = raw.type === 'news' ? 'news' : 'reason';
     item.headline_keyword = headline;
-    item.news_headline = item.type === 'news' ? text(raw.news_headline, 80) : '';
-    if (item.type === 'news' && !item.news_headline) return null;
+    // AI-written article title; runs before this field existed fall back on the client.
+    item.headline = text(raw.headline, 80) || text(raw.news_headline, 80);
+    if (item.type === 'news' && !item.headline) return null;
     item.keywords = keywords;
     item.lines = lines;
     // Source articles stay in R2 for checking; the site publishes its own article only.

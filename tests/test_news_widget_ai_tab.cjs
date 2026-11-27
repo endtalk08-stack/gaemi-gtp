@@ -10,17 +10,17 @@ const read = file => fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
 const snapshot = { ok: true, exchange_day: '2026-11-27', generated_at: '2026-11-27T15:30:05Z', items: [
   { status: 'ok', type: 'reason', symbol: 'MU', name: '마이크론 테크놀로지', change_pct: 6.26,
     generated_at: '2026-11-27T15:30:05Z', industry: '반도체',
-    headline_keyword: '장기 공급계약 확대', news_headline: '',
+    headline: '마이크론, AI 메모리 장기 공급계약 확대', headline_keyword: '장기 공급계약 확대',
     keywords: ['중국 HBM 경쟁', '장기 공급계약 확대', 'AI 메모리 수요'],
     lines: ['원인 문장이에요.', '흐름 문장이에요.', '기업 소개 문장이에요.'] },
   { status: 'no_news', symbol: 'SNDK', name: '샌디스크', change_pct: 10.2 },
   { status: 'ok', type: 'news', symbol: 'AAPL', name: '애플', change_pct: 0.8,
     generated_at: '2026-11-27T15:35:05Z',
-    headline_keyword: 'AI 광고 심의', news_headline: '애플, 아이폰16 AI 기능 광고 심의 착수',
+    headline_keyword: 'AI 광고 심의', headline: '애플, 아이폰16 AI 기능 광고 심의 착수',
     keywords: ['AI 광고 심의', '애플 인텔리전스', '공정위 조사'],
     lines: ['심의한다는 소식이 있어요.', '배경이에요.', '애플은 기술 기업이에요.'] },
   { status: 'ok', type: 'reason', symbol: 'TSLA', name: '테슬라', change_pct: -1.18,
-    headline_keyword: '로보택시 일정 지연', news_headline: '',
+    headline_keyword: '로보택시 일정 지연',   // earlier run without a headline
     keywords: ['로보택시 일정 지연', '유럽 판매 둔화', '자율주행 규제'],
     lines: ['하락 원인이에요.', '흐름이에요.', '회사 소개예요.'] },
 ] };
@@ -48,7 +48,7 @@ test('분석 tab sits after 전체 and lists only published articles with their 
   assert.deepEqual(requested, ['/news/ai/us/top20']);
   const rows = [...root.querySelectorAll('.gnw-ai-item')];
   assert.equal(rows.length, 3);                                   // no_news is not an article
-  assert.equal(rows[0].querySelector('.gnw-title').textContent, '마이크론 테크놀로지 장기 공급계약 확대');
+  assert.equal(rows[0].querySelector('.gnw-title').textContent, '마이크론, AI 메모리 장기 공급계약 확대');
   assert.equal(rows[0].querySelector('.gnw-summary').textContent, '원인 문장이에요.\n흐름 문장이에요.\n기업 소개 문장이에요.');
   assert.equal(rows[1].querySelector('.gnw-title').textContent, '애플, 아이폰16 AI 기능 광고 심의 착수');
   assert.equal(rows[2].querySelector('.gnw-title').textContent, '테슬라 로보택시 일정 지연');
@@ -58,7 +58,7 @@ test('분석 tab sits after 전체 and lists only published articles with their 
 test('opening an article uses the existing news detail view', async (t) => {
   const { root } = await widget(t);
   root.querySelector('[data-gnw-open="ai:MU"]').click();
-  assert.equal(root.querySelector('.gnw-detail-title').textContent, '마이크론 테크놀로지 장기 공급계약 확대');
+  assert.equal(root.querySelector('.gnw-detail-title').textContent, '마이크론, AI 메모리 장기 공급계약 확대');
   assert.equal(root.querySelector('.gnw-detail-source').textContent, '개미지티피');
   assert.deepEqual([...root.querySelectorAll('.gnw-article-body p')].map(p => p.textContent),
     ['원인 문장이에요.', '흐름 문장이에요.', '기업 소개 문장이에요.']);

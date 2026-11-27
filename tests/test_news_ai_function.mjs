@@ -14,7 +14,7 @@ test('keeps valid articles, drops broken ones and never exposes sources', async 
     { status: 'ok', type: 'reason', symbol: 'MU', name: '마이크론', change_pct: 6.2, industry: '반도체',
       headline_keyword: 'A 키워드', keywords: ['A 키워드', 'B 키워드', 'C 키워드'], lines: ['1', '2', '3'],
       sources: [{ title: 'ok', url: 'https://a.example/' }] },
-    { status: 'ok', type: 'news', symbol: 'AAPL', headline_keyword: 'A', news_headline: '',
+    { status: 'ok', type: 'news', symbol: 'AAPL', headline_keyword: 'A', headline: '',
       keywords: ['A', 'B', 'C'], lines: ['1', '2', '3'] },
     { status: 'ok', symbol: 'BAD', keywords: ['only one'], lines: ['1'] },
     { status: 'failed', symbol: 'X' },
@@ -24,6 +24,7 @@ test('keeps valid articles, drops broken ones and never exposes sources', async 
   assert.equal(body.complete, false);
   assert.deepEqual(body.items.map(i => i.symbol), ['MU', 'SNDK']);
   assert.equal(body.items[0].type, 'reason');
+  assert.equal(body.items[0].headline, '');
   assert.equal(body.items[0].industry, '반도체');
   assert.equal('sources' in body.items[0], false);
 });
