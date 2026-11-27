@@ -67,8 +67,10 @@ test('USD/KRW and gold widgets render live ticks, daily changes and intraday cha
   assert.ok(requested.some(url => url.includes('/XAUUSD/ohlc?interval=1m')));
   assert.ok(requested.every(url => !/api.?key|token/i.test(url)));
 
+  Object.defineProperty(w.document, 'hidden', { value: true, configurable: true });
   dock.remove('usdkrw');
   dock.remove('gold');
   assert.equal(w.document.querySelector('[data-market-quote-widget]'), null);
+  await new Promise(resolve => setTimeout(resolve, 10));
   dom.window.close();
 });
