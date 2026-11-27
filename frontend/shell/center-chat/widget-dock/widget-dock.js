@@ -186,10 +186,7 @@
   }
   let captionHeadline = '';
   let chartSymbol = '';
-  let chartRequest = 0;
-  let inlineChart = null;
-  let chartRefreshTimer = null;
-  let chartController = null;
+  const chartInstances = new Map();
   const chartDataCache = new Map();
   const CHART_HISTORY_TTL = 300000;
   let chartRetryDelay = 15000;
@@ -216,7 +213,7 @@
     const sourceIds = savedIds === null ? Object.keys(readPlacements()) : savedIds;
     return sourceIds
       .map(id => (id === 'why-up' || id === 'kospi') ? 'qqq' : id)
-      .filter((id, index, list) => id !== 'chart' && catalog()[id] && list.indexOf(id) === index);
+      .filter((id, index, list) => catalog()[id] && list.indexOf(id) === index);
   }
   function saveState() {
     try { localStorage.setItem(STATE_KEY, JSON.stringify(activeIds)); } catch (_) {}
@@ -482,6 +479,13 @@
       if (id === 'industry') {
         return '<article class="central-widget-card central-widget-card--industry" data-central-widget-id="industry" aria-label="업종 위젯"><div data-industry-widget-target="center"></div></article>';
       }
+      if (id === 'chart') {
+        return `<article class="central-widget-card central-widget-card--chart" data-central-widget-id="chart" aria-label="일봉 차트 위젯">
+          <div class="central-widget-card__top"><div class="central-widget-card__name" data-chart-widget-title>일봉 차트</div>
+          <button type="button" class="central-widget-card__close" data-central-widget-remove="chart" onclick="window.GaemiGTPWidgetDock.remove('chart')" aria-label="차트 위젯 삭제" title="차트 위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button></div>
+          <div class="us-daily-chart us-daily-chart--widget" data-chart-widget-target></div>
+        </article>`;
+      }
       if (id === 'news-feed') {
         return `<article class="central-widget-card central-widget-card--news-feed" data-central-widget-id="news-feed" aria-label="뉴스 위젯">
           <section class="gnw-root" data-gnw-root aria-label="뉴스 검색과 목록"></section>
@@ -556,6 +560,7 @@
       if (cards.has('news-feed')) cards.get('news-feed').dataset.newsMounted = 'true';
     }
     window.GaemiGTPIndustryWidget?.mount?.();
+    mountChartWidget();
     window.dispatchEvent(new CustomEvent('gaemi:widget-change'));
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('qqq')) updateQqqCard();
@@ -565,41 +570,61 @@
 
   }
   function setChartSelection(symbol) {
-    chartSymbol = /^[A-Z0-9.\\-]{1,20}$/.test(String(symbol || '')) ? String(symbol) : '';
+    chartSymbol = /^[A-Z0-9.\\-]{1,20}$/.test(String(symbol || '')) ? String(symbol).toUpperCase() : '';
+    mountChartWidget();
+  }
+
+  function mountChartWidget() {
+    const target = cards.get('chart')?.querySelector('[data-chart-widget-target]');
+    const title = cards.get('chart')?.querySelector('[data-chart-widget-title]');
+    if (!target) return;
+    if (!chartSymbol) {
+      title.textContent = '일봉 차트';
+      target.textContent = '왼쪽 거래대금 TOP 20에서 종목을 선택하면 일봉이 표시됩니다.';
+      return;
+    }
+    title.textContent = chartSymbol + ' 일봉';
+    if (target.dataset.chartSymbol === chartSymbol && target.querySelector('canvas')) return;
+    target.dataset.chartSymbol = chartSymbol;
+    void renderInlineChart(target, chartSymbol);
   }
 
   function renderInlineChart(target, symbol, initialChangePct = null) {
-    clearTimeout(chartRefreshTimer);
-    chartController?.abort();
-    setChartSelection(symbol);
-    if (!chartSymbol || !target) return;
-    const selected = chartSymbol;
-    inlineChart = { target, symbol: selected, updateLive: null };
-    chartRetryDelay = 15000;
-    return loadChart(target, selected, initialChangePct);
+    if (!target) return;
+    const selected = String(symbol || '').toUpperCase();
+    if (!/^[A-Z0-9.\\-]{1,20}$/.test(selected)) return;
+    setChartSelection(selected);
+    const previous = chartInstances.get(target);
+    if (previous) { clearTimeout(previous.timer); previous.controller?.abort(); }
+    const instance = { target, symbol: selected, timer: null, controller: null, request: 0, retryDelay: 15000, updateLive: null, initialChangePct };
+    chartInstances.set(target, instance);
+    return loadChart(instance);
   }
 
   function isInlineChartActive() {
-    return Boolean(inlineChart?.target?.isConnected);
+    for (const instance of chartInstances.values()) if (instance.target.isConnected) return true;
+    return false;
   }
 
   function onUsLiveQuotes(event) {
-    const active = inlineChart;
-    if (!active?.target?.isConnected || typeof active.updateLive !== 'function') return;
     const items = event.detail?.items;
-    const quote = Array.isArray(items)
-      ? items.find(row => row && row.symbol === active.symbol) : null;
-    active.updateLive(quote || null);
+    for (const instance of chartInstances.values()) {
+      if (!instance.target.isConnected || typeof instance.updateLive !== 'function') continue;
+      const quote = Array.isArray(items)
+        ? items.find(row => row && row.symbol === instance.symbol) : null;
+      instance.updateLive(quote || null);
+    }
   }
 
-  async function loadChart(target, symbol, initialChangePct) {
+  async function loadChart(instance) {
+    const { target, symbol, initialChangePct } = instance;
     if (!target || !symbol || document.hidden) return;
-    clearTimeout(chartRefreshTimer);
-    chartController?.abort();
+    clearTimeout(instance.timer);
+    instance.controller?.abort();
     const controller = new AbortController();
-    chartController = controller;
+    instance.controller = controller;
     const requestTimeout = setTimeout(() => controller.abort(), 15000);
-    const current = ++chartRequest;
+    const current = ++instance.request;
     let historyReady = false;
     const previous = target.querySelector('canvas');
     const status = document.createElement('div');
@@ -621,9 +646,7 @@
         && now - quote.received_at_ms <= 25000;
       if (fresh) showPercentage(quote.change_pct);
     };
-    if (inlineChart?.target === target && inlineChart.symbol === symbol) {
-      inlineChart.updateLive = updateLive;
-    }
+    instance.updateLive = updateLive;
     const loading = document.createElement('div');
     loading.textContent = '';
     if (!previous) target.replaceChildren(loading);
@@ -646,7 +669,7 @@
           chartDataCache.set(symbol, { at: Date.now(), data });
         }
       }
-      if (current !== chartRequest || !target.isConnected) return;
+      if (current !== instance.request || !target.isConnected) return;
       if (!responseOk || !data.ok || !Array.isArray(data.rows) || !data.rows.length) {
         if (!previous) loading.textContent = '일봉 데이터를 준비 중이야. 자동으로 다시 확인할게.';
         return;
@@ -668,17 +691,16 @@
       target.replaceChildren(status, plot, tooltip);
       drawCandles(canvas, data.rows, tooltip);
     } catch (_) {
-      if (current === chartRequest && target.isConnected && !previous)
+      if (current === instance.request && target.isConnected && !previous)
         loading.textContent = '일봉 연결을 다시 확인 중이야.';
     } finally {
       clearTimeout(requestTimeout);
-      if (current === chartRequest && inlineChart?.target === target && target.isConnected) {
-        const nextRead = historyReady ? CHART_HISTORY_TTL : chartRetryDelay;
-        if (!historyReady) chartRetryDelay = Math.min(60000, chartRetryDelay * 2);
-        chartRefreshTimer = setTimeout(() => {
-          if (inlineChart?.target !== target || !target.isConnected) return;
-          if (document.hidden) return;
-          return loadChart(target, symbol, initialChangePct);
+      if (current === instance.request && chartInstances.get(target) === instance && target.isConnected) {
+        const nextRead = historyReady ? CHART_HISTORY_TTL : instance.retryDelay;
+        if (!historyReady) instance.retryDelay = Math.min(60000, instance.retryDelay * 2);
+        instance.timer = setTimeout(() => {
+          if (chartInstances.get(target) !== instance || !target.isConnected || document.hidden) return;
+          return loadChart(instance);
         }, nextRead);
       }
     }
@@ -793,7 +815,7 @@
   }
 
   function add(id) {
-    if (id === 'chart' || !catalog()[id] || activeIds.includes(id)) return false;
+    if (!catalog()[id] || activeIds.includes(id)) return false;
     activeIds.push(id);
     if (!placements.has(id)) placements.set(id, 'center');
     savePlacements();
@@ -813,6 +835,11 @@
     activeIds = next;
     if (changed) {
       placements.delete(id);
+      if (id === 'chart') {
+        const target = cards.get(id)?.querySelector('[data-chart-widget-target]');
+        const instance = target && chartInstances.get(target);
+        if (instance) { clearTimeout(instance.timer); instance.controller?.abort(); chartInstances.delete(target); }
+      }
       savePlacements();
       saveState();
       render();
@@ -837,9 +864,11 @@
     // Re-sync its add/remove labels after the dock state is ready.
     window.GaemiGTPPluginSidebar?.render?.();
     document.addEventListener('visibilitychange', () => {
-      const active = inlineChart;
-      if (!document.hidden && active?.target?.isConnected)
-        loadChart(active.target, active.symbol, null);
+      if (!document.hidden) {
+        for (const instance of chartInstances.values()) {
+          if (instance.target.isConnected) void loadChart(instance);
+        }
+      }
     });
     window.addEventListener('gaemi:qqq-quote', onQqqQuote);
     window.addEventListener('gaemi:market-etf-quotes', onMarketEtfQuotes);
