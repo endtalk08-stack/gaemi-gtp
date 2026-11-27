@@ -535,7 +535,6 @@ def get_us_etf_symbols():
 ADDRESS = "127.0.0.1"
 PORT = 8765
 ALLOWED_ORIGINS = {
-    "https://gaemi-gtp.onrender.com",
     "https://gaemigtp.com",
     "https://www.gaemigtp.com",
     "https://gaemigtp-news.pages.dev",
@@ -1008,6 +1007,41 @@ def _top20_snapshot():
     return _feed_snapshot(_TOP20_QUOTES)
 
 
+def read_fresh_us_quote(symbol):
+    """Return a fresh quote already held by this DigitalOcean process."""
+    code = str(symbol or "").strip().upper()
+    if not SYMBOL.fullmatch(code):
+        return None
+    now_ms = int(time.time() * 1000)
+    with _QQQ_LOCK:
+        quote = (_TOP20_QUOTES.get(code) or _INDUSTRY_QUOTES.get(code)
+                 or _ETF_QUOTES.get(code) or _MARKET_WIDGET_QUOTES.get(code)
+                 or (_QQQ_QUOTE if code == "QQQ" else None))
+        quote = dict(quote) if isinstance(quote, dict) else None
+    if quote is not None:
+        try:
+            received = int(quote.get("received_at_ms") or 0)
+            price = float(quote.get("price") or 0)
+        except (TypeError, ValueError, OverflowError):
+            received, price = 0, 0
+        if (0 < price < 10000000 and received <= now_ms + 5000
+                and now_ms - received <= _QQQ_STALE_MS):
+            change = quote.get("change_pct")
+            return {
+                "symbol": code, "price": price,
+                "change_pct": float(change) if type(change) in (int, float) and math.isfinite(change) else None,
+                "high": None, "low": None, "received_at_ms": received, "stale": False,
+            }
+    held = _us_close_get(code, exchange=_CLOSE_EXCHANGES.get(code))
+    if held and held.get("stale") is False:
+        return {
+            "symbol": code, "price": held.get("price"),
+            "change_pct": held.get("change_pct"), "high": None, "low": None,
+            "received_at_ms": held.get("received_at_ms"), "stale": False,
+        }
+    return None
+
+
 def _industry_snapshot():
     return _feed_snapshot(_INDUSTRY_QUOTES)
 
@@ -1311,6 +1345,40 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_qqq_websocket()
         if path.path == "/health":
             return self._json(200, {"ok": True, "service": "kiwoom-us-top20-api"})
+        if path.path == "/analyze":
+            params = parse_qs(path.query)
+            stock = str((params.get("stock") or [""])[0]).strip()
+            market = str((params.get("market") or [""])[0]).strip().lower()
+            menu = str((params.get("menu") or [""])[0]).strip()
+            symbol = str((params.get("symbol") or [""])[0]).strip().upper()
+            question = str((params.get("question") or [""])[0])
+            if not stock or len(stock) > 60 or market not in ("", "us", "kr"):
+                return self._json(400, {"ok": False, "error": "invalid_input", "sections": []}, cache_control="no-store")
+            if symbol and (len(symbol) > 32 or not all(c.isascii() and (c.isalnum() or c in ".^-_") for c in symbol)):
+                return self._json(400, {"ok": False, "error": "invalid_symbol", "sections": []}, cache_control="no-store")
+            try:
+                from backend.services.engine import analyze_stock
+                from backend.services.market_rankings import get_market_selection, analysis_ticker_for_selection
+                from backend.services.news_freshness import issue_mode_for_question
+                issue_mode = issue_mode_for_question(
+                    question, explicit=(params.get("issue_mode") or [None])[0]
+                )
+                selected = get_market_selection(market or None, menu or None, symbol or None, stock=stock)
+                ticker = analysis_ticker_for_selection(selected)
+                result = (analyze_stock(
+                    stock, ticker_symbol_override=ticker,
+                    kr_market_override=bool(selected and selected["market"] == "kr"),
+                    issue_mode=issue_mode,
+                ) if ticker else analyze_stock(stock, issue_mode=issue_mode))
+                if not isinstance(result, dict):
+                    raise TypeError("analysis_result_invalid")
+                return self._json(200, result, cache_control="no-store")
+            except Exception as exc:
+                print(f"[DO API /analyze] {type(exc).__name__}: {exc}", flush=True)
+                return self._json(200, {
+                    "ok": False, "error": "analysis_failed", "sections": [],
+                    "disclosures": [], "us_filings": [],
+                }, cache_control="no-store")
         if path.path == "/market/us-industry-etf-quotes":
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "items": []})
@@ -1433,12 +1501,12 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             _QQQ_WS_CLIENTS.release()
 
-    def _json(self, status, payload):
+    def _json(self, status, payload, cache_control=None):
         data = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "public, max-age=15" if status == 200 else "no-store")
+        self.send_header("Cache-Control", cache_control or ("public, max-age=15" if status == 200 else "no-store"))
         self.send_header("X-Content-Type-Options", "nosniff")
         origin = self.headers.get("Origin", "")
         if _origin_allowed(origin):
