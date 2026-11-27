@@ -5,7 +5,6 @@
     function submitQuestion(question, { newConversation = false } = {}) {
       const text = String(question || '').trim();
       if (!text) return false;
-      if (!newConversation && ctx.getPendingQuestionSessionId() === ctx.getSession()?.id) return false;
       const appMode = window.GaemiGTPAppState?.getCurrentAppMode?.() || 'gaemi';
       const stockSearch = window.GaemiGTPCenterChatSearch;
       const isQuestion = stockSearch?.isQuestionInput?.(text) ?? true;
@@ -15,6 +14,7 @@
         window.GaemiGTPApp.requestStock(stockOnly);
         return true;
       }
+      if (!newConversation && ctx.getPendingQuestionSessionId() === ctx.getSession()?.id) return false;
       if (newConversation || !ctx.getSession()) {
         ctx.abortAnalysis();
         if (!ctx.beginChatSession()) return false;
