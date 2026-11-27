@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/test_toss_style_ai_v2_20261127.py",
-  "request_id": "tossaitest2_20261127",
+  "path": "ops/do-gateway/test_toss_style_ai_v3_20261127.py",
+  "request_id": "tossaitest3_20261127",
   "timeout": 600
 }
