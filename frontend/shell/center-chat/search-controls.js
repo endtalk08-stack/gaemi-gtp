@@ -43,6 +43,50 @@
     window.GaemiGTPWorkspaceShellState?.apply?.();
   }
 
+  // Kiwoom US instruments (name, ticker, exchange) from the R2 snapshot.
+  let usInstrumentsPromise = null;
+  function loadUsInstruments() {
+    if (!usInstrumentsPromise) {
+      usInstrumentsPromise = fetch('/stocks/us/instruments.json', { cache: 'default' })
+        .then(response => (response.ok ? response.json() : null))
+        .then(data => (Array.isArray(data?.items) ? data.items : []).filter(item =>
+          typeof item?.symbol === 'string' && /^[A-Z0-9.\-]{1,20}$/.test(item.symbol)
+          && typeof item?.name === 'string' && item.name.trim()))
+        .catch(() => [])
+        .then(items => {
+          if (!items.length) usInstrumentsPromise = null;   // retry on the next search
+          return items;
+        });
+    }
+    return usInstrumentsPromise;
+  }
+
+  const compactName = value => String(value || '').toLowerCase().replace(/\s+/g, '');
+
+  function findUsInstrument(items, ...queries) {
+    for (const query of queries.map(compactName).filter(Boolean)) {
+      const exact = items.find(item => compactName(item.symbol) === query || compactName(item.name) === query);
+      if (exact) return exact;
+      const prefix = items.find(item => compactName(item.name).startsWith(query));
+      if (prefix) return prefix;
+    }
+    return null;
+  }
+
+  // Build exactly what a click on the trading-value sidebar row sends.
+  function usValueSelection(instrument) {
+    const row = [...document.querySelectorAll('button[data-stock-symbol]')]
+      .find(button => button.dataset.stockSymbol === instrument.symbol);
+    const number = value => (value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null);
+    return {
+      market: 'us', menu: 'value', name: instrument.name, symbol: instrument.symbol,
+      industry: instrument.industry || null,
+      price: number(row?.dataset.currentPrice),
+      change_pct: number(row?.dataset.currentChangePct),
+      currency: 'USD', source: 'kiwoom'
+    };
+  }
+
   function selectStock(stockName, { enterAnalysis = false, marketSelection = null } = {}) {
     // Sidebar rows already have a source-verified name and code: do not
     // rename them through free-text search aliases before server matching.
@@ -54,7 +98,20 @@
       document.body.classList.remove('left-home-open', 'left-market-open', 'left-context-open', 'left-plugin-open');
     }
     window.GaemiGTPWorkspaceShellState?.apply?.();
-    window.GaemiGTPApp?.requestStock?.(normalizedStockName, marketSelection);
+    if (marketSelection) {
+      window.GaemiGTPApp?.requestStock?.(normalizedStockName, marketSelection);
+      return;
+    }
+    // A typed US stock name or ticker takes the same path as a sidebar click.
+    loadUsInstruments().then(items => {
+      const instrument = findUsInstrument(items, stockName, normalizedStockName);
+      if (!instrument) {
+        window.GaemiGTPApp?.requestStock?.(normalizedStockName, null);
+        return;
+      }
+      window.GaemiGTPWidgetDock?.setChartSelection?.(instrument.symbol);
+      window.GaemiGTPApp?.requestStock?.(instrument.name, usValueSelection(instrument));
+    });
   }
 
   function openStockInChat(stockName, marketSelection = null) {
