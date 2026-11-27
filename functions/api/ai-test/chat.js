@@ -1,4 +1,4 @@
-import { proxyToDigitalOcean } from '../../../_utils/do-proxy.js';
+import { proxyToDigitalOcean } from '../../_utils/do-proxy.js';
 
 export async function onRequest({ request }) {
   return proxyToDigitalOcean(request);
