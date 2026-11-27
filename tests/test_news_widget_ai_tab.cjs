@@ -27,14 +27,21 @@ const snapshot = { ok: true, exchange_day: '2026-11-27', generated_at: '2026-11-
 const intros = { ok: true, items: { MU: '마이크론은 메모리 반도체를 만드는 회사예요.',
   NVDA: '엔비디아는 AI 서버용 GPU를 만드는 회사예요.' } };
 
+const macro = { ok: true, items: [
+  { id: 'macro:0123456789abcdef', category: '연준·금리', source: '연준', title: '연준, FOMC 성명 발표',
+    title_en: 'Federal Reserve issues FOMC statement', url: 'https://www.federalreserve.gov/x',
+    published_at: '2026-11-27T19:00:00Z' }] };
+
 async function widget(t) {
   const dom = new JSDOM('<div data-central-widget-id="news-feed"><section data-gnw-root></section></div>',
     { url: 'https://example.test', runScripts: 'outside-only' });
   const w = dom.window;
   const requested = [];
   w.fetch = async (url) => { requested.push(url);
-    return { ok: true, json: async () => (url === '/news/ai/us/profiles' ? intros : snapshot) }; };
+    return { ok: true, json: async () => (url === '/news/ai/us/profiles' ? intros
+      : url === '/news/macro/us' ? macro : snapshot) }; };
   w.eval(read('frontend/widgets/news/us-news-ai.js'));
+  w.eval(read('frontend/widgets/news/us-macro-news.js'));
   w.eval(read('frontend/widgets/news/news-widget.js'));
   w.GaemiGTPNewsWidget.mount();
   t.after(() => w.close());   // stop the widget's refresh timer
@@ -48,7 +55,7 @@ test('분석 tab sits after 전체 and lists only published articles with their 
   const { requested, root } = await widget(t);
   const tabs = [...root.querySelectorAll('[data-gnw-cat]')].map(b => b.textContent);
   assert.deepEqual(tabs.slice(0, 2), ['전체', '분석']);
-  assert.deepEqual([...new Set(requested)].sort(), ['/news/ai/us/profiles', '/news/ai/us/top20']);
+  assert.deepEqual([...new Set(requested)].sort(), ['/news/ai/us/profiles', '/news/ai/us/top20', '/news/macro/us']);
   const rows = [...root.querySelectorAll('.gnw-ai-item')];
   assert.equal(rows.length, 3);                                   // no_news is not an article
   assert.equal(rows[0].querySelector('.gnw-title').textContent, '마이크론, AI 메모리 장기 공급계약 확대');
@@ -100,8 +107,8 @@ test('전체 shows 개미지티피 articles and no design-file sample news', asy
   root.querySelector('[data-gnw-cat="전체"]').click();
   await new Promise(resolve => setTimeout(resolve, 20));
   const titles = [...root.querySelectorAll('.gnw-item .gnw-title')].map(n => n.textContent);
-  assert.deepEqual(titles, ['애플, 아이폰16 AI 기능 광고 심의 착수', '마이크론, AI 메모리 장기 공급계약 확대',
-                            '테슬라 로보택시 일정 지연']);               // newest first; undated last
+  assert.deepEqual(titles, ['연준, FOMC 성명 발표', '애플, 아이폰16 AI 기능 광고 심의 착수',
+                            '마이크론, AI 메모리 장기 공급계약 확대', '테슬라 로보택시 일정 지연']);   // newest first; undated last
   assert.ok(!root.textContent.includes('연준 의장 긴급 기자회견'));
   assert.ok(!read('frontend/widgets/news/news-widget.js').includes('SOURCE_PREVIEW_ITEMS'));
 });
@@ -115,4 +122,17 @@ test('company intro: saved sentence first, the article own third line otherwise,
   root.querySelector('[data-gnw-open="n1"]').click();
   const intro = [...root.querySelectorAll('.gnw-stock-entry')].map(e => e.querySelector('.gnw-stock-intro')?.textContent || '');
   assert.deepEqual(intro, ['엔비디아는 AI 서버용 GPU를 만드는 회사예요.', '']);   // unknown ticker: blank
+});
+
+test('translated US macro headlines: own category, original title, official link', async (t) => {
+  const { root } = await widget(t);
+  root.querySelector('[data-gnw-cat="연준·금리"]').click();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const rows = [...root.querySelectorAll('.gnw-item')];
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].querySelector('.gnw-title').textContent, '연준, FOMC 성명 발표');
+  assert.equal(rows[0].querySelector('.gnw-summary').textContent, '원문: Federal Reserve issues FOMC statement');
+  rows[0].click();
+  assert.equal(root.querySelector('.gnw-detail-source').textContent, '연준');
+  assert.equal(root.querySelector('.gnw-source-link').getAttribute('href'), 'https://www.federalreserve.gov/x');
 });

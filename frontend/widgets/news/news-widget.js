@@ -37,7 +37,12 @@
     if (Number.isNaN(date.getTime())) return '';
     return new Intl.DateTimeFormat('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Seoul'}).format(date);
   }
-  function currentItems() { return items; }
+  // Real articles: setItems() news plus translated US macro headlines (연준·백악관·경제지표).
+  const macro = () => window.GaemiGTPUsMacroNews;
+  function currentItems() {
+    const extra = macro()?.newsItems() || [];
+    return extra.length ? [...items, ...extra].sort((a,b)=>(Date.parse(b.published_at)||0)-(Date.parse(a.published_at)||0)) : items;
+  }
   function matches(item) {
     const c=selected === '전체' || item.category === selected;
     const q=query.trim().toLowerCase();
@@ -108,10 +113,14 @@
   }
   let aiRefreshTimer = null;
   function refreshAi() {
-    ai()?.load()?.then(() => { if ((selected===AI_CATEGORY || selected==='전체') && detailId===null) render(); });
+    const loads=[ai()?.load?.(), macro()?.load?.()].filter(Boolean);
+    Promise.all(loads).then(() => {
+      // Do not remount the list while the user is typing a search.
+      if (detailId===null && widget() && !document.activeElement?.matches?.('[data-gnw-search]')) render();
+    });
   }
   function syncAiRefresh() {
-    const active = (selected===AI_CATEGORY || selected==='전체') && Boolean(widget());
+    const active = Boolean(widget());
     if (active && !aiRefreshTimer) aiRefreshTimer = setInterval(refreshAi, 60000);
     if (!active && aiRefreshTimer) { clearInterval(aiRefreshTimer); aiRefreshTimer = null; }
   }
@@ -210,7 +219,7 @@
     const cat=e.target.closest('[data-gnw-cat]');
     if(cat){
       selected=cat.dataset.gnwCat;visible=5;render();
-      if(selected===AI_CATEGORY || selected==='전체') refreshAi();
+      refreshAi();
       syncAiRefresh();
       return;
     }
