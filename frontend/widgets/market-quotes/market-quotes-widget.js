@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const FX_URL = 'https://api.frankfurter.dev/v1/latest?base=USD&symbols=KRW';
+  const FX_URL = 'https://api.frankfurter.dev/v2/rate/usd/krw';
   const GOLD_URL = 'https://xaus.com/api/v1/spot?currency=KRW&unit=gram&compact=1';
   const FX_REFRESH_MS = 6 * 60 * 60 * 1000;
   const GOLD_REFRESH_MS = 60 * 1000;
@@ -57,11 +57,11 @@
       const response = await fetch(FX_URL, { cache: 'default', signal: AbortSignal.timeout(8000) });
       if (!response.ok) throw new Error('FX HTTP ' + response.status);
       const data = await response.json();
-      const value = Number(data?.rates?.KRW);
-      if (!Number.isFinite(value) || value <= 0 || !data?.date) throw new Error('Invalid FX payload');
+      const value = Number(data?.rate);
+      if (!Number.isFinite(value) || value <= 0 || data?.base?.toUpperCase() !== 'USD' || data?.quote?.toUpperCase() !== 'KRW' || !data?.date) throw new Error('Invalid FX payload');
       fx = {
         value,
-        meta: '일간 기준환율 · ' + data.date,
+        meta: '기준환율 · ' + data.date,
         state: 'Frankfurter',
         stale: false
       };
@@ -83,8 +83,8 @@
           || data?.xau?.unit !== 'gram' || status === 'unavailable') {
         throw new Error('Invalid gold payload');
       }
-      const stale = Boolean(data.stale || status === 'stale' || data.fx_stale);
-      const observedAt = data.price_as_of || data.data_state?.as_of || data.updated_at;
+      const stale = Boolean(data.stale || status === 'stale' || data.fx_stale || (status && status !== 'fresh'));
+      const observedAt = data.data_state?.as_of || data.updated_at;
       const parts = ['국제 현물 · 원화/g'];
       if (observedAt) parts.push(formatDate(observedAt));
       if (data.fx_stale) parts.push('환율 환산 갱신 지연');
