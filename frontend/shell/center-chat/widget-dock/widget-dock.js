@@ -16,7 +16,7 @@
       if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
       return Object.fromEntries(Object.entries(value)
         .filter(([id, where]) => catalog()[id] && ['left', 'center', 'right'].includes(where))
-        .map(([id, where]) => [id, id === 'usdkrw' || id === 'gold' ? 'right' : where]));
+        .map(([id, where]) => [id, id === 'usdkrw' || id === 'gold' ? 'center' : where]));
     } catch (_) { return {}; }
   }
   function savePlacements() {
@@ -824,7 +824,7 @@
   function add(id) {
     if (id === 'chart' || !catalog()[id] || activeIds.includes(id)) return false;
     activeIds.push(id);
-    if (!placements.has(id)) placements.set(id, id === 'usdkrw' || id === 'gold' ? 'right' : 'center');
+    if (!placements.has(id)) placements.set(id, 'center');
     savePlacements();
     saveState();
     if (id === 'qqq') window.dispatchEvent(new CustomEvent('gaemi:qqq-placement'));
