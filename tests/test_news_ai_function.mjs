@@ -33,3 +33,18 @@ test('before the first run it returns an empty list, not an error', async () => 
   const body = await (await onRequestGet({ env: env(null) })).json();
   assert.deepEqual(body, { ok: true, exchange_day: null, generated_at: null, items: [] });
 });
+
+test('company intros: only well-formed sentences, source label never exposed', async () => {
+  const { onRequestGet: profiles } = await import('../functions/news/ai/us/profiles.js');
+  const env = data => ({ DATA_R2: { get: async key => {
+    assert.equal(key, 'news/ai/us/PROFILES.json');
+    return data === null ? null : { json: async () => data };
+  } } });
+  const body = await (await profiles({ env: env({ ok: true, items: {
+    NVDA: { intro: '엔비디아는 AI 서버용 GPU를 만드는 회사예요.', source: 'manual' },
+    'bad sym': { intro: '잘못된 티커예요.' },
+    TSLA: { intro: '짧' },
+  } }) })).json();
+  assert.deepEqual(body, { ok: true, items: { NVDA: '엔비디아는 AI 서버용 GPU를 만드는 회사예요.' } });
+  assert.deepEqual(await (await profiles({ env: env(null) })).json(), { ok: true, items: {} });
+});

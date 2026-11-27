@@ -164,15 +164,20 @@ class RunTest(unittest.TestCase):
     def run_job(self, **kw):
         return job.run(RUN_AT, top20=lambda: self.stocks, analyze=self.analyze,
                        upload=lambda payload, key: self.uploads.append((key, payload)),
-                       state_path=self.state_path, sleeper=self.sleeps.append, **kw)
+                       state_path=self.state_path, sleeper=self.sleeps.append,
+                       manual_path=self.state_path.parent / "no-manual.json", **kw)
 
     def test_publishes_each_stock_and_the_top20_list(self):
         with patch.object(job, "us_trading_day", return_value=dt.date(2026, 11, 25)):
             outcome = self.run_job()
         self.assertEqual(outcome["counts"], {"ok": 1, "no_news": 1})
-        # MU, the list right after MU, then the final complete list.
+        # Intros at start, MU (new intro published), the list right after MU, then the final list.
         self.assertEqual([key for key, _ in self.uploads],
-                         ["news/ai/us/MU.json", "news/ai/us/TOP20.json", "news/ai/us/TOP20.json"])
+                         ["news/ai/us/PROFILES.json", "news/ai/us/PROFILES.json", "news/ai/us/MU.json",
+                          "news/ai/us/TOP20.json", "news/ai/us/TOP20.json"])
+        self.assertEqual(self.uploads[0][1]["items"], {})
+        self.assertEqual(self.uploads[1][1]["items"]["MU"], {"intro": GOOD["lines"][2], "source": "ai"})
+        self.uploads = self.uploads[2:]
         self.assertFalse(self.uploads[1][1]["complete"])
         self.assertTrue(self.uploads[2][1]["complete"])
         mu = self.uploads[0][1]
@@ -203,8 +208,32 @@ class RunTest(unittest.TestCase):
         with patch.object(job, "us_trading_day", return_value=dt.date(2026, 11, 25)):
             job.run(RUN_AT, top20=lambda: self.stocks, analyze=boom,
                     upload=lambda payload, key: self.uploads.append((key, payload)),
-                    state_path=self.state_path, sleeper=self.sleeps.append)
-        self.assertEqual([key for key, _ in self.uploads], ["news/ai/us/TOP20.json"])
+                    state_path=self.state_path, sleeper=self.sleeps.append,
+                    manual_path=self.state_path.parent / "no-manual.json")
+        self.assertEqual([key for key, _ in self.uploads], ["news/ai/us/PROFILES.json", "news/ai/us/TOP20.json"])
+
+    def test_hand_edited_intro_wins_and_is_never_overwritten(self):
+        manual = self.state_path.parent / "intros.json"
+        manual.write_text(json.dumps({"MU": "마이크론은 메모리 반도체를 만드는 회사예요.", "bad sym": "x"}),
+                          encoding="utf-8")
+        seen = {}
+
+        def analyze(stock, profiles):
+            seen[stock["symbol"]] = profiles.get(stock["symbol"])
+            return self.analyze(stock, profiles)
+        with patch.object(job, "us_trading_day", return_value=dt.date(2026, 11, 25)):
+            job.run(RUN_AT, top20=lambda: self.stocks, analyze=analyze,
+                    upload=lambda payload, key: self.uploads.append((key, payload)),
+                    state_path=self.state_path, sleeper=self.sleeps.append, manual_path=manual)
+        self.assertEqual(seen["MU"], "마이크론은 메모리 반도체를 만드는 회사예요.")   # model is told to reuse it
+        profiles = [payload for key, payload in self.uploads if key == "news/ai/us/PROFILES.json"]
+        self.assertEqual(len(profiles), 1)                         # no "new intro" republish for MU
+        self.assertEqual(profiles[0]["items"],
+                         {"MU": {"intro": "마이크론은 메모리 반도체를 만드는 회사예요.", "source": "manual"}})
+
+    def test_industry_is_given_to_the_model(self):
+        message = job.build_user_message(dict(self.stocks[0], industry="반도체"), [])
+        self.assertIn("업종: 반도체", message)
 
     def test_skips_holidays_and_weekends(self):
         thanksgiving = dt.datetime(2026, 11, 26, 15, 30, tzinfo=UTC)
