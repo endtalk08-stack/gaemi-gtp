@@ -1,8 +1,10 @@
 """Refresh only current verified Top20 daily candles after the New York close."""
 import datetime as dt
+import json
 import math
 import os
 import time
+import urllib.request
 from zoneinfo import ZoneInfo
 import psycopg
 from backend.providers.kiwoom_us_quotes import fetch_us_daily_chart, issue_access_token
@@ -55,6 +57,55 @@ def needs_bootstrap(now, latest):
     return latest < expected
 
 
+
+def publish_daily_snapshot(dsn, symbol, endpoint, token):
+    """Publish the latest verified 120 daily candles from Neon to the existing Pages R2 binding."""
+    with psycopg.connect(dsn, connect_timeout=7) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT session_date,open,high,low,close,volume
+                FROM public.us_daily_candles
+                WHERE market='US' AND symbol=%s AND source=%s
+                ORDER BY session_date DESC LIMIT 120
+            """, (symbol, SOURCE))
+            rows = cur.fetchall()
+    candles = []
+    for day, opening, high, low, close, volume in reversed(rows):
+        if volume is None:
+            raise ValueError('daily_volume_missing')
+        candle = {
+            'date': day.isoformat(),
+            'open': float(opening), 'high': float(high),
+            'low': float(low), 'close': float(close),
+            'volume': int(volume)
+        }
+        if not valid_candle({
+            'date': candle['date'], 'open': candle['open'], 'high': candle['high'],
+            'low': candle['low'], 'close': candle['close'], 'volume': candle['volume']
+        }, dt.date.min, dt.date.max):
+            raise ValueError('daily_snapshot_invalid')
+        candles.append(candle)
+    if not candles:
+        raise ValueError('daily_snapshot_empty')
+    payload = json.dumps({
+        'symbol': symbol, 'interval': 'daily', 'source': SOURCE,
+        'count': len(candles), 'candles': candles
+    }, separators=(',', ':'), allow_nan=False).encode('utf-8')
+    request = urllib.request.Request(
+        endpoint, data=payload, method='POST',
+        headers={
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json',
+            'Content-Length': str(len(payload))
+        }
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        result = json.loads(response.read().decode('utf-8'))
+        if response.status != 200 or result.get('ok') is not True or result.get('symbol') != symbol:
+            raise RuntimeError('chart_r2_publish_rejected')
+    return len(candles)
+
+
 def main(*, bootstrap=False):
     now = dt.datetime.now(dt.timezone.utc)
     ny = now.astimezone(ZoneInfo('America/New_York'))
@@ -64,6 +115,11 @@ def main(*, bootstrap=False):
     dsn = os.environ.get('NEWS_DATABASE_URL', '').strip()
     if not dsn:
         raise RuntimeError('chart_database_url_missing')
+    sync_endpoint = os.environ.get('GAEMIGTP_CHART_SYNC_URL', '').strip()
+    sync_token = os.environ.get('GAEMIGTP_CHART_SYNC_TOKEN', '').strip()
+    expected_endpoint = 'https://gaemigtp-main.pages.dev/internal/us-daily-chart-snapshot'
+    if sync_endpoint != expected_endpoint or len(sync_token) < 32:
+        raise RuntimeError('chart_r2_sync_configuration_missing')
     with psycopg.connect(dsn, connect_timeout=7) as conn:
         with conn.cursor() as cur:
             cur.execute("""
@@ -134,6 +190,13 @@ def main(*, bootstrap=False):
             print('CHART_REFRESH_RETRY symbol=%s kind=%s' % (symbol,type(exc).__name__), flush=True)
         finally:
             time.sleep(0.4)
+    for symbol, exchange, latest, count, fetched in matches:
+        try:
+            published = publish_daily_snapshot(dsn, symbol, sync_endpoint, sync_token)
+            print('CHART_R2_PUBLISH_OK symbol=%s candles=%s' % (symbol, published), flush=True)
+        except Exception as exc:
+            failed += 1
+            print('CHART_R2_PUBLISH_RETRY symbol=%s kind=%s' % (symbol,type(exc).__name__), flush=True)
     print('CHART_REFRESH_DONE symbols=%s failed=%s' % (len(matches),failed), flush=True)
     if failed:
         raise SystemExit(1)
