@@ -15,7 +15,9 @@ export async function proxyToDigitalOcean(request) {
     redirect: 'manual',
   };
   if (request.method !== 'GET' && request.method !== 'HEAD') {
-    init.body = request.body;
+    // Buffer the small JSON API payload so the origin receives a Content-Length
+    // header that its HTTP/1.1 handler can read reliably.
+    init.body = await request.arrayBuffer();
   }
   const upstream = await fetch(target.toString(), init);
   const responseHeaders = new Headers(upstream.headers);
