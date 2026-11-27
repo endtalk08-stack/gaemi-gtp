@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/us_move_news.py","target":"backend/us_move_news.py"}
+{"operation":"deploy","path":"ops/systemd/gaemigtp-us-move-news.service","target":"ops/systemd/gaemigtp-us-move-news.service"}
