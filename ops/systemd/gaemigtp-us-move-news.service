@@ -1,0 +1,19 @@
+[Unit]
+Description=gaemiGTP US TOP20 price-move headlines (Kiwoom quotes, R2)
+After=network-online.target gaemigtp-kiwoom-us-top20-https.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=gaemigtp-news
+Group=gaemigtp-news
+EnvironmentFile=/var/lib/gaemigtp-news/r2.env
+Environment=PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+WorkingDirectory=/opt/gaemigtp-news/app
+ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.us_move_news
+TimeoutStartSec=50
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/gaemigtp-news
