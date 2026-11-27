@@ -52,7 +52,7 @@ test('company intros: only well-formed sentences, source label never exposed', a
 test('macro headlines: keeps translated https items only and fixes the category', async () => {
   const { onRequestGet: macro } = await import('../functions/news/macro/us.js');
   const env = data => ({ DATA_R2: { get: async key => {
-    assert.equal(key, 'news/macro/us/feed.json');
+    assert.equal(key, 'news/stocks/us/MACROFEED.json');
     return data === null ? null : { json: async () => data };
   } } });
   const body = await (await macro({ env: env({ ok: true, generated_at: 'g', items: [

@@ -3,7 +3,7 @@
 Every few minutes (gaemigtp-us-macro-news.timer):
 
   Fed / White House / economic-data RSS -> keep market-related items by fixed rules
-  -> DeepL translates the headline only -> R2 news/macro/us/feed.json
+  -> DeepL translates the headline only -> R2 news/stocks/us/MACROFEED.json
 
 The headline is shown as it is, only translated, with the original English title
 and a link to the official page. Sources are US government publications.
@@ -29,7 +29,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 STATE_PATH = Path("/var/lib/gaemigtp-news/us-macro-news-state.json")
-OBJECT_KEY = "news/macro/us/feed.json"
+OBJECT_KEY = "news/stocks/us/MACROFEED.json"
 KEEP_ITEMS = 200
 MAX_AGE = dt.timedelta(days=3)
 USER_AGENT = "Mozilla/5.0 (compatible; gaemiGTP-news/1.0)"

@@ -1,6 +1,6 @@
 // Cloudflare Pages: US macro headlines (Fed, White House, BEA) translated to Korean,
 // written to R2 by the DigitalOcean job backend/us_macro_news.py. Read-only.
-const OBJECT_KEY = 'news/macro/us/feed.json';
+const OBJECT_KEY = 'news/stocks/us/MACROFEED.json';
 const CATEGORIES = new Set(['연준·금리', '정책·규제', '경제지표']);
 const text = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : '');
 const CACHE = { 'Cache-Control': 'public, max-age=60, s-maxage=60' };

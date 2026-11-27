@@ -59,7 +59,7 @@ class RunTest(unittest.TestCase):
 
     def test_translates_only_new_headlines_once(self):
         self.assertEqual(self.run_job()["new"], 1)
-        self.assertEqual(self.uploads[0][0], "news/macro/us/feed.json")
+        self.assertEqual(self.uploads[0][0], "news/stocks/us/MACROFEED.json")
         self.assertEqual(self.uploads[0][1]["items"][0]["title"], "연준, FOMC 성명 발표")
         self.assertEqual(self.run_job()["status"], "unchanged")      # already known: no DeepL call
         self.assertEqual(len(self.translated), 1)
