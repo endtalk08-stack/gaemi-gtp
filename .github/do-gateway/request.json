@@ -1,1 +1,1 @@
-{"operation":"install-translate-keys","request_id":"translate-keys-20261128a"}
+{"operation":"run","path":"ops/do-gateway/check_uploader_blob_20261128.py","request_id":"uploader-blob-20261128","timeout":60}
