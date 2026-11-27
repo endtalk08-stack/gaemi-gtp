@@ -1345,40 +1345,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_qqq_websocket()
         if path.path == "/health":
             return self._json(200, {"ok": True, "service": "kiwoom-us-top20-api"})
-        if path.path == "/analyze":
-            params = parse_qs(path.query)
-            stock = str((params.get("stock") or [""])[0]).strip()
-            market = str((params.get("market") or [""])[0]).strip().lower()
-            menu = str((params.get("menu") or [""])[0]).strip()
-            symbol = str((params.get("symbol") or [""])[0]).strip().upper()
-            question = str((params.get("question") or [""])[0])
-            if not stock or len(stock) > 60 or market not in ("", "us", "kr"):
-                return self._json(400, {"ok": False, "error": "invalid_input", "sections": []}, cache_control="no-store")
-            if symbol and (len(symbol) > 32 or not all(c.isascii() and (c.isalnum() or c in ".^-_") for c in symbol)):
-                return self._json(400, {"ok": False, "error": "invalid_symbol", "sections": []}, cache_control="no-store")
-            try:
-                from backend.services.engine import analyze_stock
-                from backend.services.market_rankings import get_market_selection, analysis_ticker_for_selection
-                from backend.services.news_freshness import issue_mode_for_question
-                issue_mode = issue_mode_for_question(
-                    question, explicit=(params.get("issue_mode") or [None])[0]
-                )
-                selected = get_market_selection(market or None, menu or None, symbol or None, stock=stock)
-                ticker = analysis_ticker_for_selection(selected)
-                result = (analyze_stock(
-                    stock, ticker_symbol_override=ticker,
-                    kr_market_override=bool(selected and selected["market"] == "kr"),
-                    issue_mode=issue_mode,
-                ) if ticker else analyze_stock(stock, issue_mode=issue_mode))
-                if not isinstance(result, dict):
-                    raise TypeError("analysis_result_invalid")
-                return self._json(200, result, cache_control="no-store")
-            except Exception as exc:
-                print(f"[DO API /analyze] {type(exc).__name__}: {exc}", flush=True)
-                return self._json(200, {
-                    "ok": False, "error": "analysis_failed", "sections": [],
-                    "disclosures": [], "us_filings": [],
-                }, cache_control="no-store")
+        if path.path in ("/analyze", "/api/news/issues", "/api/market/us-close"):
+            return self._dispatch_flask_app()
         if path.path == "/market/us-industry-etf-quotes":
             if not getattr(self.server, "qqq_feed_enabled", False):
                 return self._json(503, {"ok": False, "items": []})
@@ -1407,6 +1375,51 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(503, {"ok": False, "items": [], "error": type(exc).__name__})
         self._json(200, result)
 
+
+    def do_POST(self):
+        path = urlsplit(self.path)
+        if path.path == "/api/ai-test/chat":
+            return self._dispatch_flask_app()
+        return self._json(404, {"ok": False, "error": "not_found"})
+
+    def do_OPTIONS(self):
+        origin = self.headers.get("Origin", "")
+        if not _origin_allowed(origin):
+            return self._json(403, {"ok": False, "error": "origin_not_allowed"})
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Vary", "Origin")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _dispatch_flask_app(self):
+        """Run the existing Flask API routes inside the DigitalOcean API process."""
+        try:
+            length = int(self.headers.get("Content-Length", "0") or 0)
+        except (TypeError, ValueError):
+            return self._json(400, {"ok": False, "error": "invalid_content_length"})
+        if length < 0 or length > 20000:
+            return self._json(413, {"ok": False, "error": "request_too_large"})
+        body = self.rfile.read(length) if length else None
+        try:
+            from app import app as flask_app
+            forwarded = {
+                key: value for key, value in self.headers.items()
+                if key.lower() in ("content-type", "authorization", "cookie", "origin", "user-agent")
+            }
+            with flask_app.test_client() as client:
+                response = client.open(self.path, method=self.command, headers=forwarded, data=body)
+                payload = response.get_json(silent=True)
+                if payload is None:
+                    payload = {"ok": response.status_code < 400,
+                               "error": "upstream_non_json_response"}
+                return self._json(response.status_code, payload, cache_control="no-store")
+        except Exception as exc:
+            print(f"[DO Flask bridge] {type(exc).__name__}: {exc}", flush=True)
+            return self._json(503, {"ok": False, "error": "analysis_service_unavailable"}, cache_control="no-store")
 
     def _serve_qqq_websocket(self):
         if not getattr(self.server, "qqq_feed_enabled", False):
