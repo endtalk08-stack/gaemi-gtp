@@ -1577,4 +1577,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # The HTTPS service runs as __main__; expose this same module instance under
+    # its package name so the Flask analysis engine reads the live quote caches
+    # populated by this process rather than creating a second empty module.
+    import sys
+    sys.modules.setdefault("backend.kiwoom_us_top20_api", sys.modules[__name__])
     main()
