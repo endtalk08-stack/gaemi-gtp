@@ -466,9 +466,9 @@
 }
 .central-widget-card--live-quote .central-widget-card__kospi-market > [data-market-quote-percent] {
   flex: 0 0 auto;
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 20px;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  line-height: 24px !important;
 }
 .central-widget-card--live-quote [data-market-quote-change] {
   justify-content: flex-start;
