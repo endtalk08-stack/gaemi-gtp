@@ -112,7 +112,7 @@
   function isQuestionInput(text) {
     // Preserve one-word stock searches (including aliases such as '하이닉스').
     // Treat natural-language requests as chat, not as a full stock name.
-    return /[?？]|알려\s*줘|보여\s*줘|설명\s*해|분석\s*해|해\s*줘|얼마|몇|왜|어때|어떻게|52주|20일|큰손|평균단가|신고가|신저가|최고가|최저가|목표가|주가|움직였|상승률|하락률|추세|수급|뉴스|공시|이슈|비교|전망|실적|호재|악재|괜찮|궁금|알려줄|어떤|있어|없어|될까|할까|인가|일까/.test(text);
+    return /[?？]|알려\s*줘|보여\s*줘|설명\s*해|분석\s*해|해\s*줘|얼마|몇|왜|어때|어떻게|52주|20일|큰손|평균단가|신고가|신저가|최고가|최저가|목표가|주가|움직였|상승률|하락률|추세|수급|뉴스|공시|이슈|비교|전망|실적|호재|악재|괜찮|궁금|알려줄|어떤|있어|없어|될까|할까|인가|일까|안녕|반가|고마워|감사|뭐해|누구야|도움/.test(text);
   }
 
   function submitChatInput(value, { enterAnalysis = false } = {}) {
@@ -168,7 +168,7 @@
     document.getElementById('bottomModeMenu')?.classList.add('hidden');
   }
 
-  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, resolveStockInputOnly, resolveStockMention, selectStock, openStockInChat, focusStockInput, submitStockSearch, submitChatInput, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace, resetToHome };
+  window.GaemiGTPCenterChatSearch = { resolveStockSearchInput, resolveStockInputOnly, resolveStockMention, isQuestionInput, selectStock, openStockInChat, focusStockInput, submitStockSearch, submitChatInput, handleHeroSearch, handleBottomSearch, toggleModeDropdown, selectAppMode, enterChatWorkspace, resetToHome };
   window.enterChatWorkspace = enterChatWorkspace;
   window.resetToHome = resetToHome;
   window.openStockInChat = openStockInChat;
