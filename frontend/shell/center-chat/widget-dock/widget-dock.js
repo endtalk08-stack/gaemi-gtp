@@ -189,7 +189,6 @@
   const chartInstances = new Map();
   const chartDataCache = new Map();
   const CHART_HISTORY_TTL = 300000;
-  let chartRetryDelay = 15000;
 
   function catalog() { return window.GaemiGTPWidgetCatalog || {}; }
   function escapeHtml(value) {
@@ -593,7 +592,14 @@
     if (!target) return;
     const selected = String(symbol || '').toUpperCase();
     if (!/^[A-Z0-9.\\-]{1,20}$/.test(selected)) return;
-    setChartSelection(selected);
+    chartSymbol = selected;
+    const widgetTarget = cards.get('chart')?.querySelector('[data-chart-widget-target]');
+    if (widgetTarget && widgetTarget !== target) {
+      const widgetTitle = cards.get('chart')?.querySelector('[data-chart-widget-title]');
+      if (widgetTitle) widgetTitle.textContent = selected + ' 일봉';
+      widgetTarget.dataset.chartSymbol = selected;
+      mountChartWidget();
+    }
     const previous = chartInstances.get(target);
     if (previous) { clearTimeout(previous.timer); previous.controller?.abort(); }
     const instance = { target, symbol: selected, timer: null, controller: null, request: 0, retryDelay: 15000, updateLive: null, initialChangePct };
@@ -675,7 +681,7 @@
         return;
       }
       historyReady = true;
-      chartRetryDelay = 15000;
+      instance.retryDelay = 15000;
       loading.remove();
       const plot = document.createElement('div');
       plot.className = 'us-daily-chart__plot';
