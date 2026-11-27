@@ -1,6 +1,6 @@
 {
   "operation": "run",
-  "path": "ops/do-gateway/read_news_sources_20261127.py",
-  "request_id": "newssrc1_20261127",
-  "timeout": 60
+  "path": "ops/do-gateway/audit_news_r2_state_20261127.py",
+  "request_id": "newsr2audit1_20261127",
+  "timeout": 120
 }
