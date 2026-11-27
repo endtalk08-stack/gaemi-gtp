@@ -2333,7 +2333,7 @@ def analyze_stock(raw_name='SK하이닉스', ticker_symbol_override=None, kr_mar
                 print(f"[analyze trace] stock={raw_name} stage={stage} elapsed={time.monotonic() - started:.2f}s total={time.monotonic() - analyze_started:.2f}s", flush=True)
 
             # Domestic news/disclosure requires identity, not redundant
-            # Render-side Naver price/Yahoo indicator collection.
+            # legacy Naver price/Yahoo indicator collection.
             price_result = {
                 "current_price": 0.0, "change_pct": None, "indicators": {},
                 "price_tags": [], "first_reply_metrics_text": "",
