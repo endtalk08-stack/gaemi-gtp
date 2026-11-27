@@ -484,12 +484,12 @@
         const title = isFx ? '원/달러' : '국제 금 현물';
         const symbol = isFx ? 'USD/KRW' : 'XAU/KRW';
         const unit = isFx ? '원' : '원/g';
-        return `<article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted central-widget-card--live-quote" data-central-widget-id="${id}" data-market-quote-widget="${id}" aria-label="${title} 실시간 위젯">
+        return `<article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted central-widget-card--live-quote" data-central-widget-id="${id}" data-market-quote-widget="${id}" aria-label="${title} 시세 위젯">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${id}" onclick="window.GaemiGTPWidgetDock.remove('${id}')" aria-label="${title} 위젯 삭제" title="위젯 삭제">
             <i data-lucide="x" class="w-3 h-3"></i>
           </button>
           <div class="central-widget-card__kospi-title"><span>${symbol}</span><span class="central-widget-card__kospi-market-name">${title}</span></div>
-          <div class="central-widget-card__kospi-body" aria-label="${symbol} 실시간 시세와 등락률">
+          <div class="central-widget-card__kospi-body" aria-label="${symbol} 시세와 등락률">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
               <defs>
                 <linearGradient id="${id}LiveQuoteGradient" x1="0" y1="0" x2="0" y2="1">
@@ -501,7 +501,7 @@
               <polyline data-market-quote-line points=""></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-market-quote-value>—</strong><span>${unit}</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><span class="central-widget-card--live-quote__price"><strong data-market-quote-value>—</strong><span>${unit}</span></span><span class="central-widget-card__kospi-change" data-market-quote-percent>—</span></div>
               <div class="central-widget-card__kospi-row central-widget-card__kospi-change" data-market-quote-change>—</div>
               <div class="central-widget-card__kospi-row central-widget-card__kospi-reason" data-market-quote-meta>시세 연결 중</div>
             </div>
