@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/read_uploader_rules_20261128.py","request_id":"uploader-rules-20261128b","timeout":60}
+{"operation":"deploy","path":"backend/us_macro_news.py","target":"backend/us_macro_news.py"}
