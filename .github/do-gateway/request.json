@@ -1,1 +1,1 @@
-{"operation":"restart","unit":"gaemigtp-us-move-news.timer"}
+{"operation":"logs","unit":"gaemigtp-us-macro-news.service","lines":8}
