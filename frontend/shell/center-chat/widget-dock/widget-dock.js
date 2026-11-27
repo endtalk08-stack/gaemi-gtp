@@ -572,6 +572,7 @@
       if (cards.has('news-feed')) cards.get('news-feed').dataset.newsMounted = 'true';
     }
     window.GaemiGTPIndustryWidget?.mount?.();
+    window.GaemiGTPMarketQuoteWidgets?.mount?.();
     window.dispatchEvent(new CustomEvent('gaemi:widget-change'));
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('qqq')) updateQqqCard();
