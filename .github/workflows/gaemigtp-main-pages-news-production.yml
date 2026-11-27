@@ -51,6 +51,9 @@ jobs:
       - name: Verify current production assets against the production baseline
         if: github.event_name == 'pull_request'
         working-directory: production-baseline
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
       - name: Verify portable widget lifecycle
         run: |
@@ -223,13 +226,12 @@ jobs:
           workingDirectory: "${{ runner.temp }}/gaemigtp-pages-deploy"
           command: pages deploy frontend --project-name gaemigtp-main --branch main --commit-hash ${{ github.sha }}
       - name: Verify every production asset byte-for-byte
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: node scripts/pages/verify-pages-deployment.mjs "https://gaemigtp-main.pages.dev"
       - name: Verify production Pages Functions and existing R2 binding
-        run: |
-          site=https://gaemigtp-main.pages.dev
-          curl -fsS --retry 3 --max-time 20 "$site/market/qqq-reason" |
-            jq -e '.ok == true and (.items | type == "array")'
-          curl -fsS --retry 3 --max-time 20 "$site/stocks/us/instruments.json" |
-            jq -e '.ok == true and ([.items[] | select((.symbol == "NVDA" or .symbol == "WMT") and (.industry | length > 0))] | length) == 2'
-          curl -fsS --retry 3 --max-time 20 "$site/market/us-daily-chart?symbol=NVDA" |
-            jq -e '.ok == true and .symbol == "NVDA" and (.rows | length > 0)'
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: bash scripts/pages/verify-pages-functions.sh "https://gaemigtp-main.pages.dev"
