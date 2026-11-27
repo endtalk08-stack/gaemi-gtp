@@ -108,9 +108,9 @@
       changeNode.classList.toggle('central-widget-card__kospi-change--down', fresh && change < 0);
     }
     if (metaNode) metaNode.textContent = record
-      ? (fresh ? '실시간 · ' : '장 마감/지연 · ') + (id === 'usdkrw' ? 'USD/KRW' : '국제 금 현물 · 원화/g')
+      ? (fresh ? '' : '장 마감/지연 · ') + (id === 'usdkrw' ? 'USD/KRW' : '국제 금 현물 · 원화/g')
         + (record.time ? ' · ' + formatTime(record.time) : '')
-      : '실시간 시세 연결 중';
+      : '시세 연결 중';
     chart?.classList.toggle('central-widget-card__sparkline--up', fresh && record?.changePct > 0);
     chart?.classList.toggle('central-widget-card__sparkline--down', fresh && record?.changePct < 0);
     draw(card, state[id].points);
