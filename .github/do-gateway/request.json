@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/probe_live_feeds_20261127.py",
-  "request_id": "livefeeds1_20261127",
-  "timeout": 180
+  "operation": "deploy",
+  "path": "backend/us_quote_change.py",
+  "target": "backend/us_quote_change.py"
 }
