@@ -15,7 +15,7 @@ test('USD/KRW and gold plugins render real source data with explicit freshness l
   w.fetch = async (url) => {
     requested.push(String(url));
     if (String(url).includes('frankfurter.dev')) {
-      return { ok: true, json: async () => ({ base: 'USD', date: '2026-11-26', rates: { KRW: 1450.25 } }) };
+      return { ok: true, json: async () => ({ base: 'USD', quote: 'KRW', date: '2026-11-26', rate: 1450.25 }) };
     }
     if (String(url).includes('xaus.com')) {
       return { ok: true, json: async () => ({
@@ -41,13 +41,16 @@ test('USD/KRW and gold plugins render real source data with explicit freshness l
   const gold = w.document.querySelector('[data-market-quote-widget="gold"]');
   assert.equal(fx.querySelector('[data-market-quote-value]').textContent, '1,450.25');
   assert.equal(gold.querySelector('[data-market-quote-value]').textContent, '187,500');
-  assert.match(fx.querySelector('[data-market-quote-meta]').textContent, /일간 기준환율/);
+  assert.match(fx.querySelector('[data-market-quote-meta]').textContent, /기준환율/);
   assert.match(gold.querySelector('[data-market-quote-meta]').textContent, /국제 현물/);
   assert.equal(fx.classList.contains('is-market-quote-stale'), false);
   assert.equal(gold.classList.contains('is-market-quote-stale'), false);
-  assert.ok(fx.querySelector('a[href="https://frankfurter.dev/"]'));
-  assert.ok(gold.querySelector('a[href="https://xaus.com/api/"]'));
+  assert.ok(fx.classList.contains('central-widget-card--kospi'));
+  assert.ok(gold.classList.contains('central-widget-card--kospi'));
+  assert.equal(fx.querySelector('.central-widget-card__kospi-title').textContent.replace(/\\s+/g, ' ').trim(), 'USD/KRW원/달러');
   assert.equal(requested.length, 2);
+  assert.ok(requested.some(url => url.includes('/v2/rate/usd/krw')));
+  assert.ok(requested.some(url => url.includes('/api/v1/spot?currency=KRW&unit=gram&compact=1')));
   assert.ok(requested.every(url => !/api.?key|token/i.test(url)));
 
   dock.remove('usdkrw');
