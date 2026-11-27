@@ -404,18 +404,38 @@
   font-weight: 500;
 }
 .central-widget-card--live-quote .central-widget-card__kospi-body {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 54px);
-}
-.central-widget-card--live-quote .central-widget-card__kospi-copy {
-  grid-column: 1;
-  grid-row: 1;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 8px;
 }
 .central-widget-card--live-quote .central-widget-card__sparkline {
   display: block;
+  grid-column: 1;
+  grid-row: 1;
+  width: 54px;
+  height: 28px;
+}
+.central-widget-card--live-quote .central-widget-card__kospi-copy {
   grid-column: 2;
   grid-row: 1;
-  width: 100%;
-  height: 22px;
+  min-width: 0;
+}
+.central-widget-card--live-quote .central-widget-card__kospi-market {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+.central-widget-card--live-quote .central-widget-card__kospi-market strong {
+  font-size: 18px;
+  line-height: 22px;
+}
+.central-widget-card--live-quote .central-widget-card__kospi-market > [data-market-quote-percent] {
+  flex: 0 0 auto;
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  line-height: 22px !important;
 }
 .central-widget-card--live-quote .central-widget-card__sparkline polygon {
   fill: currentColor;
