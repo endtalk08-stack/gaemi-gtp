@@ -165,5 +165,43 @@ class EtfRefreshDoesNotBlockViewersTest(_Base):
             self.assertTrue(all(q["change_pct"] == 1.5 for q in quotes))
 
 
+class HolidayBaselineTest(_Base):
+    def test_holiday_evening_compares_with_previous_trading_close(self):
+        # Thanksgiving 20:33 ET: overnight ticks must use Wednesday's close,
+        # not a Thanksgiving close that does not exist.
+        target, exact = us_quote_change._target(dt.datetime(2026, 11, 27, 1, 33, tzinfo=UTC))
+        self.assertFalse(exact)
+        self.assertEqual(target, dt.date(2026, 11, 25))
+
+        closes = {"2026-11-24": 100.0, "2026-11-25": 110.0}
+
+        def lookup(symbol, exchange, day, exact):
+            if exact:
+                return None
+            candidates = [d for d in closes if d <= day.isoformat()]
+            return (closes[max(candidates)], max(candidates)) if candidates else None
+
+        with patch.object(us_quote_change, "_lookup", lookup):
+            now = dt.datetime(2026, 11, 27, 1, 33, tzinfo=UTC)
+            us_quote_change.validated_change("SPY", "NY", 121.0, now=now)
+            deadline = time.time() + 5
+            result = (None, None)
+            while result == (None, None) and time.time() < deadline:
+                result = us_quote_change.validated_change("SPY", "NY", 121.0, now=now)
+                time.sleep(0.05)
+        self.assertAlmostEqual(result[0], 10.0)
+        self.assertEqual(result[1], "2026-11-25")
+
+    def test_regular_trading_day_after_close_still_waits_for_todays_close(self):
+        target, exact = us_quote_change._target(dt.datetime(2026, 11, 25, 22, 0, tzinfo=UTC))
+        self.assertTrue(exact)
+        self.assertEqual(target, dt.date(2026, 11, 25))
+
+    def test_weekend_uses_previous_close(self):
+        target, exact = us_quote_change._target(dt.datetime(2026, 11, 28, 22, 0, tzinfo=UTC))
+        self.assertFalse(exact)
+        self.assertEqual(target, dt.date(2026, 11, 27))
+
+
 if __name__ == "__main__":
     unittest.main()
