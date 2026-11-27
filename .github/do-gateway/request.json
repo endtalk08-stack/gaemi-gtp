@@ -1,5 +1,5 @@
 {
   "operation": "deploy",
-  "path": "ops/systemd/gaemigtp-us-news-ai.service",
-  "target": "ops/systemd/gaemigtp-us-news-ai.service"
+  "path": "ops/systemd/gaemigtp-us-news-ai.timer",
+  "target": "ops/systemd/gaemigtp-us-news-ai.timer"
 }
