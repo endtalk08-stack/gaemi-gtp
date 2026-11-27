@@ -24,15 +24,21 @@
     return pending;
   }
 
-  // Shaped like any other news item: the translated headline, the original English
-  // title as the summary, and the official page as the source link.
+  // Shaped like any other news item: the translated headline, the translated first
+  // paragraph of the official release (the list shows its first paragraph), the original
+  // English title, and the official page as the source link.
   function newsItems() {
-    return rows.map(row => ({
+    return rows.map(row => {
+      const original = row.title_en ? '원문: ' + row.title_en : '';
+      const summary = String(row.summary || '').trim();
+      return {
       id: row.id, category: row.category, title: row.title,
-      summary: row.title_en ? '원문: ' + row.title_en : '', body: '',
+      summary: summary ? summary.split(/\n\s*\n/)[0] : original,
+      body: summary ? [summary, original].filter(Boolean).join('\n\n') : '',
       source: row.source, published_at: row.published_at, time: '', url: row.url,
       tickers: [], issues: [], industries: []
-    }));
+      };
+    });
   }
 
   window.GaemiGTPUsMacroNews = { load, newsItems };

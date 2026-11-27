@@ -12,7 +12,8 @@ function cleanItem(raw) {
   if (!title || !/^https:\/\//.test(url) || Number.isNaN(Date.parse(published))) return null;
   if (!/^[a-f0-9]{16}$/.test(String(raw.id || ''))) return null;
   return {
-    id: 'macro:' + raw.id, title, title_en: text(raw.title_en, 300), url, published_at: published,
+    id: 'macro:' + raw.id, title, title_en: text(raw.title_en, 300), summary: text(raw.summary, 900),
+    url, published_at: published,
     source: text(raw.source, 20) || '미국 정부',
     category: CATEGORIES.has(raw.category) ? raw.category : '정책·규제'
   };

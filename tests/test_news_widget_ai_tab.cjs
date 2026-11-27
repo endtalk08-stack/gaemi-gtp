@@ -30,7 +30,11 @@ const intros = { ok: true, items: { MU: '마이크론은 메모리 반도체를 
 const macro = { ok: true, items: [
   { id: 'macro:0123456789abcdef', category: '연준·금리', source: '연준', title: '연준, FOMC 성명 발표',
     title_en: 'Federal Reserve issues FOMC statement', url: 'https://www.federalreserve.gov/x',
-    published_at: '2026-11-27T19:00:00Z' }] };
+    published_at: '2026-11-27T19:00:00Z' },
+  { id: 'macro:1123456789abcdef', category: '경제지표', source: '美 경제분석국',
+    title: '2026년 3분기 국내총생산(GDP, 2차 추정치)', title_en: 'GDP (Second Estimate), 3rd Quarter 2026',
+    summary: '실질 GDP는 3분기에 연율 4.3% 증가했어요.\n\n투자와 소비 증가가 성장을 이끌었어요.',
+    url: 'https://www.bea.gov/gdp', published_at: '2026-11-25T13:30:00Z' }] };
 
 async function widget(t) {
   const dom = new JSDOM('<div data-central-widget-id="news-feed"><section data-gnw-root></section></div>',
@@ -108,7 +112,8 @@ test('전체 shows 개미지티피 articles and no design-file sample news', asy
   await new Promise(resolve => setTimeout(resolve, 20));
   const titles = [...root.querySelectorAll('.gnw-item .gnw-title')].map(n => n.textContent);
   assert.deepEqual(titles, ['연준, FOMC 성명 발표', '애플, 아이폰16 AI 기능 광고 심의 착수',
-                            '마이크론, AI 메모리 장기 공급계약 확대', '테슬라 로보택시 일정 지연']);   // newest first; undated last
+                            '마이크론, AI 메모리 장기 공급계약 확대', '테슬라 로보택시 일정 지연',
+                            '2026년 3분기 국내총생산(GDP, 2차 추정치)']);   // undated AI uses the run time   // newest first; undated last
   assert.ok(!root.textContent.includes('연준 의장 긴급 기자회견'));
   assert.ok(!read('frontend/widgets/news/news-widget.js').includes('SOURCE_PREVIEW_ITEMS'));
 });
@@ -135,4 +140,16 @@ test('translated US macro headlines: own category, original title, official link
   rows[0].click();
   assert.equal(root.querySelector('.gnw-detail-source').textContent, '연준');
   assert.equal(root.querySelector('.gnw-source-link').getAttribute('href'), 'https://www.federalreserve.gov/x');
+});
+
+test('economic data shows the translated release summary, not only the release name', async (t) => {
+  const { root } = await widget(t);
+  root.querySelector('[data-gnw-cat="경제지표"]').click();
+  await new Promise(resolve => setTimeout(resolve, 20));
+  const row = root.querySelector('.gnw-item');
+  assert.equal(row.querySelector('.gnw-summary').textContent, '실질 GDP는 3분기에 연율 4.3% 증가했어요.');
+  row.click();
+  assert.deepEqual([...root.querySelectorAll('.gnw-article-body p')].map(p => p.textContent),
+    ['실질 GDP는 3분기에 연율 4.3% 증가했어요.', '투자와 소비 증가가 성장을 이끌었어요.',
+     '원문: GDP (Second Estimate), 3rd Quarter 2026']);
 });

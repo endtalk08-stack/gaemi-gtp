@@ -3,10 +3,13 @@
 Every few minutes (gaemigtp-us-macro-news.timer):
 
   Fed / White House / economic-data RSS -> keep market-related items by fixed rules
-  -> DeepL translates the headline only -> R2 news/stocks/us/MACROFEED.json
+  -> the first paragraphs of the official page (the numbers: "Real GDP increased at an
+     annual rate of 4.3 percent ...") -> headline + summary translated -> R2
+     news/stocks/us/MACROFEED.json
 
-The headline is shown as it is, only translated, with the original English title
-and a link to the official page. Sources are US government publications.
+Headline and summary are shown as they are, only translated, with the original English
+title and a link to the official page. Sources are US government publications.
+Fed speeches keep the headline only (their first paragraph is usually a greeting).
 Only new headlines are translated, so the free tiers are far more than enough.
 DeepL (DEEPL_API_KEY, 500,000 characters a month free) is tried first; when it
 fails or its monthly limit is used up, Google Translation (GOOGLE_TRANSLATE_API_KEY)
@@ -16,6 +19,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import html as htmllib
 import json
 import os
 import re
@@ -31,6 +35,8 @@ from pathlib import Path
 STATE_PATH = Path("/var/lib/gaemigtp-news/us-macro-news-state.json")
 OBJECT_KEY = "news/stocks/us/MACROFEED.json"
 KEEP_ITEMS = 200
+SUMMARY_CHARS = 600
+SUMMARY_TRIES = 3
 MAX_AGE = dt.timedelta(days=3)
 USER_AGENT = "Mozilla/5.0 (compatible; gaemiGTP-news/1.0)"
 
@@ -47,16 +53,22 @@ MARKET = re.compile(
     r"invest\w*|manufactur\w*|steel|alumin\w*|auto\w*|pharma\w*|drug pric\w*|artificial intelligence|"
     r"ai|deal|agreement|deregulat\w*|regulat\w*|shutdown|minerals?|rare earth)\b", re.I)
 
-# (source label, widget category, feed url, rule)
+# (source label, widget category, feed url, rule, add a summary from the page)
 FEEDS = [
-    ("연준", "연준·금리", "https://www.federalreserve.gov/feeds/press_monetary.xml", "all"),
-    ("연준", "연준·금리", "https://www.federalreserve.gov/feeds/speeches.xml", "all"),
-    ("연준", "연준·금리", "https://www.federalreserve.gov/feeds/testimony.xml", "all"),
-    ("백악관", "정책·규제", "https://www.whitehouse.gov/presidential-actions/feed/", "skip"),
-    ("백악관", "정책·규제", "https://www.whitehouse.gov/news/feed/", "market"),
-    ("백악관", "정책·규제", "https://www.whitehouse.gov/briefings-statements/feed/", "market"),
-    ("美 경제분석국", "경제지표", "https://apps.bea.gov/rss/rss.xml", "all"),
+    ("연준", "연준·금리", "https://www.federalreserve.gov/feeds/press_monetary.xml", "all", True),
+    ("연준", "연준·금리", "https://www.federalreserve.gov/feeds/speeches.xml", "all", False),
+    ("연준", "연준·금리", "https://www.federalreserve.gov/feeds/testimony.xml", "all", False),
+    ("백악관", "정책·규제", "https://www.whitehouse.gov/presidential-actions/feed/", "skip", True),
+    ("백악관", "정책·규제", "https://www.whitehouse.gov/news/feed/", "market", True),
+    ("백악관", "정책·규제", "https://www.whitehouse.gov/briefings-statements/feed/", "market", True),
+    ("美 경제분석국", "경제지표", "https://apps.bea.gov/rss/rss.xml", "all", True),
 ]
+
+# Site chrome that is not part of the release text.
+BOILERPLATE = re.compile(r"\.gov website|Secure \.gov|Share sensitive information|Arrows\]|seeks the video|"
+                         r"cookies|JavaScript|Skip to (main )?content", re.I)
+DATE = re.compile(r"(January|February|March|April|May|June|July|August|September|October|November|December)"
+                  r" \d{1,2}, \d{4}\s+")
 
 
 def fetch(url, timeout=20):
@@ -66,7 +78,39 @@ def fetch(url, timeout=20):
 
 
 def clean(text):
-    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text or "")).strip()
+    return re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", text or ""))).strip()
+
+
+def extract_summary(page):
+    """First paragraphs of an official release, up to SUMMARY_CHARS, cut at a sentence end."""
+    page = re.sub(r"(?is)<(script|style|nav|header|footer|aside)[^>]*>.*?</\1>", " ", page)
+    out, size = [], 0
+    for raw in re.findall(r"(?is)<p[^>]*>(.*?)</p>", page):
+        text = clean(raw)
+        if len(text) < 60 or BOILERPLATE.search(text):
+            continue
+        # "For release at 2:00 p.m. EST Share --> ... The Board ..." (Fed press releases)
+        text = re.sub(r"^For release at [^>]*?(-->\s*)+", "", text).strip()
+        text = re.sub(r"^For (immediate )?release[^.]*?\b(EST|EDT|ET)\b\s*", "", text).strip()
+        # "Presidential Actions TITLE Proclamations November 25, 2026 As families ..." (White House)
+        head = DATE.search(text[:220])
+        if head and re.match(r"^(Presidential Actions|Briefings|Fact Sheets?|Articles|News|Remarks)\b", text):
+            text = text[head.end():].strip()
+        if len(text) < 60:
+            continue
+        room = SUMMARY_CHARS - size
+        if room < 80:
+            break
+        if len(text) > room:
+            cut = max(text.rfind(". ", 0, room), text.rfind("; ", 0, room))
+            if cut < 60:
+                break
+            text = text[:cut + 1]
+        out.append(text)
+        size += len(text)
+        if len(out) == 2:
+            break
+    return "\n\n".join(out)
 
 
 def keep(title, rule):
@@ -77,7 +121,7 @@ def keep(title, rule):
     return rule == "skip" or bool(MARKET.search(title))
 
 
-def parse_feed(raw, source, category, rule, now):
+def parse_feed(raw, source, category, rule, now, summary=False):
     root = ET.fromstring(raw)
     rows = []
     for item in root.iter("item"):
@@ -93,15 +137,15 @@ def parse_feed(raw, source, category, rule, now):
             continue
         rows.append({"id": hashlib.sha1(link.encode()).hexdigest()[:16], "source": source,
                      "category": category, "title_en": title[:300], "url": link,
-                     "published_at": published.isoformat()})
+                     "published_at": published.isoformat(), "want_summary": bool(summary)})
     return rows
 
 
 def collect(now, *, fetcher=fetch, feeds=FEEDS):
     found = []
-    for source, category, url, rule in feeds:
+    for source, category, url, rule, summary in feeds:
         try:
-            found += parse_feed(fetcher(url), source, category, rule, now)
+            found += parse_feed(fetcher(url), source, category, rule, now, summary)
         except Exception as exc:
             print("[us-macro-news] feed_error %s %s" % (url, type(exc).__name__), flush=True)
     return found
@@ -193,7 +237,19 @@ def upload_json(payload, object_key, uploader=None):
         path.unlink(missing_ok=True)
 
 
-def run(now=None, *, collector=collect, translator=translate, upload=upload_json, state_path=STATE_PATH):
+def add_summaries(rows, fetcher=fetch):
+    """Fill summary_en from the official page; a failed page is retried on later runs."""
+    for row in rows:
+        try:
+            page = fetcher(row["url"])
+            row["summary_en"] = extract_summary(page.decode("utf-8", "replace") if isinstance(page, bytes) else page)
+        except Exception as exc:
+            row["summary_tries"] = row.get("summary_tries", 0) + 1
+            print("[us-macro-news] page_error %s %s" % (row["url"], type(exc).__name__), flush=True)
+
+
+def run(now=None, *, collector=collect, translator=translate, upload=upload_json, state_path=STATE_PATH,
+        page_fetcher=fetch):
     now = now or dt.datetime.now(dt.timezone.utc)
     state = read_state(state_path)
     items = [row for row in state.get("items") or [] if isinstance(row, dict) and row.get("id")]
@@ -203,23 +259,36 @@ def run(now=None, *, collector=collect, translator=translate, upload=upload_json
         if row["id"] not in known and row["id"] not in seen:
             seen.add(row["id"])
             fresh.append(row)
-    if not fresh:
+    # Published items still waiting for their summary (e.g. pages that failed, or older runs).
+    pending = [row for row in items if row.get("want_summary", row.get("source") != "연준")
+               and "summary_en" not in row and row.get("summary_tries", 0) < SUMMARY_TRIES
+               and now - dt.datetime.fromisoformat(row["published_at"]) <= MAX_AGE]
+    add_summaries([row for row in fresh if row.get("want_summary")] + pending, page_fetcher)
+    todo = [row for row in fresh + pending if row.get("summary_en") and not row.get("summary")]
+    if not fresh and not todo:
+        if any(row.get("summary_tries") for row in pending):
+            write_state(dict(state, items=items), state_path)
         print("[us-macro-news] no_new_items", flush=True)
         return {"status": "unchanged", "new": 0}
+    texts = [row["title_en"] for row in fresh] + [row["summary_en"] for row in todo]
     try:
-        korean, provider = translator([row["title_en"] for row in fresh])
+        korean, provider = translator(texts)
     except Exception as exc:
-        # Untranslated headlines are not published; they are retried next run.
+        # Untranslated items are not published; they are retried next run.
+        for row in todo:
+            row.pop("summary_en", None)
         print("[us-macro-news] translate_error=" + str(exc), flush=True)
         return {"status": "translate_failed", "new": len(fresh)}
-    for row, text in zip(fresh, korean):
+    for row, text in zip(fresh, korean[:len(fresh)]):
         row["title"] = text[:200]
+    for row, text in zip(todo, korean[len(fresh):]):
+        row["summary"] = text[:900]
     items = sorted(items + fresh, key=lambda r: r["published_at"], reverse=True)[:KEEP_ITEMS]
     upload({"ok": True, "generated_at": now.isoformat(), "items": items}, OBJECT_KEY)
     state["items"] = items
     write_state(state, state_path)
-    print("[us-macro-news] published new=%d total=%d chars=%d translator=%s" % (
-        len(fresh), len(items), sum(len(r["title_en"]) for r in fresh), provider), flush=True)
+    print("[us-macro-news] published new=%d summaries=%d total=%d chars=%d translator=%s" % (
+        len(fresh), len(todo), len(items), sum(len(t) for t in texts), provider), flush=True)
     return {"status": "published", "new": len(fresh)}
 
 

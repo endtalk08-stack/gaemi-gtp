@@ -109,5 +109,61 @@ class RunTest(unittest.TestCase):
         self.assertEqual(seen["auth"], "DeepL-Auth-Key k:fx")
 
 
+BEA_PAGE = """<html><nav><p>Skip to main content and other navigation links here for the site</p></nav>
+<p>Real gross domestic product (GDP ) increased at an annual rate of 4.3 percent in the third quarter of 2026
+(July, August, and September), according to the second estimate released today by the U.S. Bureau of Economic
+Analysis (BEA). In the second quarter, real GDP increased 2.2 percent.</p>
+<p>The contributors to the increase in real GDP in the third quarter were increases in investment, consumer
+spending, and government spending that were partly offset by a decrease in exports.</p>
+<p>Real GDP was revised up 0.9 percentage point from the advance estimate, primarily reflecting upward revisions.</p>
+</html>"""
+FED_PAGE = """<p>Official websites use .gov A .gov website belongs to an official government organization in the United States.</p>
+<p>For release at 2:00 p.m. EST Share --> --> --> The Federal Reserve Board on Tuesday released the minutes from its
+recent meetings to review and determine the discount rates provided to depository institutions.</p>"""
+WH_PAGE = """<p>Presidential Actions ADJUSTING IMPORTS OF STEEL Proclamations November 25, 2026 By the authority vested
+in me, I hereby raise the tariff on steel imports to 50 percent effective December 1, 2026.</p>"""
+
+
+class SummaryTest(unittest.TestCase):
+    def test_bea_keeps_the_numbers_in_two_paragraphs(self):
+        text = job.extract_summary(BEA_PAGE)
+        self.assertTrue(text.startswith("Real gross domestic product (GDP ) increased at an annual rate of 4.3 percent"))
+        self.assertEqual(text.count("\n\n"), 1)
+        self.assertLessEqual(len(text), job.SUMMARY_CHARS)
+        self.assertNotIn("Skip to", text)
+
+    def test_fed_release_drops_site_chrome_and_release_time(self):
+        self.assertTrue(job.extract_summary(FED_PAGE).startswith("The Federal Reserve Board on Tuesday released"))
+
+    def test_white_house_drops_the_page_header(self):
+        self.assertTrue(job.extract_summary(WH_PAGE).startswith("By the authority vested in me"))
+
+    def test_summary_is_translated_with_the_title_and_old_items_are_filled_in(self):
+        state = Path(tempfile.mkdtemp()) / "state.json"
+        old = {"id": "b" * 16, "source": "美 경제분석국", "category": "경제지표", "title_en": "Personal Income",
+               "title": "개인 소득", "url": "https://www.bea.gov/old", "published_at": NOW.isoformat()}
+        state.write_text(json.dumps({"items": [old]}), encoding="utf-8")
+        fresh = {"id": "c" * 16, "source": "美 경제분석국", "category": "경제지표", "title_en": "GDP, 3rd Quarter",
+                 "url": "https://www.bea.gov/gdp", "published_at": NOW.isoformat(), "want_summary": True}
+        sent, uploads = [], []
+
+        def translator(texts):
+            sent.append(list(texts))
+            return ["번역:" + t[:10] for t in texts], "deepl"
+        job.run(NOW, collector=lambda now: [dict(fresh)], translator=translator,
+                upload=lambda payload, key: uploads.append(payload), state_path=state,
+                page_fetcher=lambda url: BEA_PAGE.encode())
+        self.assertEqual(sent[0][0], "GDP, 3rd Quarter")
+        self.assertEqual(len(sent[0]), 3)                       # title + both summaries in one request
+        by_id = {row["id"]: row for row in uploads[0]["items"]}
+        self.assertTrue(by_id["c" * 16]["summary"].startswith("번역:Real gross"))
+        self.assertTrue(by_id["b" * 16]["summary"].startswith("번역:Real gross"))
+        sent.clear()
+        job.run(NOW, collector=lambda now: [dict(fresh)], translator=translator,
+                upload=lambda payload, key: uploads.append(payload), state_path=state,
+                page_fetcher=lambda url: BEA_PAGE.encode())
+        self.assertEqual(sent, [])                              # nothing translated twice
+
+
 if __name__ == "__main__":
     unittest.main()
