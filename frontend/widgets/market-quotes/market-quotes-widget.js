@@ -1,123 +1,205 @@
-/* Independent market quote widgets: USD/KRW reference rate and XAU/KRW spot reference. */
+/* Live USD/KRW and XAUUSD ticks, rendered in the existing compact market-widget layout. */
 (function () {
   'use strict';
 
-  const FX_URL = 'https://api.frankfurter.dev/v2/rate/usd/krw';
-  const GOLD_URL = 'https://xaus.com/api/v1/spot?currency=KRW&unit=gram&compact=1';
-  const FX_REFRESH_MS = 6 * 60 * 60 * 1000;
-  const GOLD_REFRESH_MS = 60 * 1000;
-  const RETRY_MS = 5 * 60 * 1000;
-  let fx = null;
-  let gold = null;
-  let fxAttemptAt = 0;
-  let goldAttemptAt = 0;
+  const API = 'https://biquote.io/api/';
+  const POLL_MS = 5000;
+  const HISTORY_URL = (symbol) => API + symbol + '/ohlc?interval=1m&limit=60';
+  const GRAMS_PER_TROY_OUNCE = 31.1034768;
+  const state = {
+    usdkrw: { points: [], record: null, historyLoaded: false },
+    gold: { points: [], record: null, historyLoaded: false }
+  };
   let timer = null;
+  let busy = false;
 
-  function formatNumber(value, digits) {
-    return Number(value).toLocaleString('ko-KR', {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits
-    });
+  function number(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
-  function formatDate(value) {
-    if (!value) return '';
-    const date = new Date(value);
-    if (!Number.isFinite(date.getTime())) return '';
+  function timeMs(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value < 1e12 ? value * 1000 : value;
+    if (typeof value === 'string') {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > 0) return numeric < 1e12 ? numeric * 1000 : numeric;
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  function format(value, digits) {
+    return value.toLocaleString('ko-KR', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+
+  function formatTime(value) {
+    const ms = timeMs(value);
+    if (!ms) return '';
     return new Intl.DateTimeFormat('ko-KR', {
-      timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit'
-    }).format(date);
+      timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', second: '2-digit'
+    }).format(new Date(ms));
   }
 
-  function paint(id, record, kind) {
-    const root = document.querySelector('[data-market-quote-widget="' + id + '"]');
-    if (!root) return;
-    const valueNode = root.querySelector('[data-market-quote-value]');
-    const metaNode = root.querySelector('[data-market-quote-meta]');
-    const stateNode = root.querySelector('[data-market-quote-state]');
-    if (!record) {
-      if (valueNode) valueNode.textContent = '—';
-      if (metaNode) metaNode.textContent = '시세 연결 확인 필요';
-      if (stateNode) stateNode.textContent = '조회 불가';
-      root.classList.add('is-market-quote-stale');
+  function isFresh(tick) {
+    const age = number(tick?.quoteAgeSeconds);
+    const timestamp = timeMs(tick?.timestamp);
+    const timestampAge = timestamp ? (Date.now() - timestamp) / 1000 : null;
+    return tick?.stale !== true
+      && tick?.marketState !== 'closed'
+      && (age === null ? timestampAge !== null && timestampAge >= -5 && timestampAge <= 90 : age <= 90);
+  }
+
+  function appendPoint(id, value, at) {
+    const points = state[id].points;
+    const timestamp = timeMs(at) || Date.now();
+    const last = points[points.length - 1];
+    if (last && timestamp <= last.time) return;
+    points.push({ value, time: timestamp });
+    while (points.length > 120) points.shift();
+  }
+
+  function draw(card, points) {
+    const line = card.querySelector('[data-market-quote-line]');
+    const fill = card.querySelector('[data-market-quote-fill]');
+    if (!line || !fill) return;
+    if (points.length < 2) {
+      line.setAttribute('points', '');
+      fill.setAttribute('points', '');
       return;
     }
-    if (valueNode) valueNode.textContent = kind === 'fx'
-      ? formatNumber(record.value, 2)
-      : formatNumber(record.value, 0);
-    if (metaNode) metaNode.textContent = record.meta;
-    if (stateNode) stateNode.textContent = record.state || '참고 시세';
-    root.classList.toggle('is-market-quote-stale', Boolean(record.stale));
+    const values = points.map(point => point.value);
+    const low = Math.min(...values);
+    const high = Math.max(...values);
+    const span = high - low;
+    const coords = values.map((value, index) => {
+      const x = 1 + index / (values.length - 1) * 70;
+      const y = span === 0 ? 14 : 25 - (value - low) / span * 22;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    line.setAttribute('points', coords);
+    fill.setAttribute('points', '1,27 ' + coords + ' 71,27');
   }
 
-  async function fetchFx() {
-    fxAttemptAt = Date.now();
-    try {
-      const response = await fetch(FX_URL, { cache: 'default', signal: AbortSignal.timeout(8000) });
-      if (!response.ok) throw new Error('FX HTTP ' + response.status);
-      const data = await response.json();
-      const value = Number(data?.rate);
-      if (!Number.isFinite(value) || value <= 0 || data?.base?.toUpperCase() !== 'USD' || data?.quote?.toUpperCase() !== 'KRW' || !data?.date) throw new Error('Invalid FX payload');
-      fx = {
-        value,
-        meta: '기준환율 · ' + data.date,
-        state: 'Frankfurter',
-        stale: false
-      };
-    } catch (_) {
-      if (fx) fx = { ...fx, stale: true, state: '마지막 정상값' };
+  function paint(id) {
+    const card = document.querySelector('[data-market-quote-widget="' + id + '"]');
+    const record = state[id].record;
+    if (!card) return;
+    const priceNode = card.querySelector('[data-market-quote-value]');
+    const changeNode = card.querySelector('[data-market-quote-change]');
+    const metaNode = card.querySelector('[data-market-quote-meta]');
+    const chart = card.querySelector('.central-widget-card__sparkline');
+    const fresh = Boolean(record?.fresh);
+    card.classList.toggle('central-widget-card--qqq-muted', !fresh);
+    if (priceNode) priceNode.textContent = record
+      ? format(record.price, id === 'usdkrw' ? 2 : 0)
+      : '—';
+    if (changeNode) {
+      const change = record?.changePct;
+      changeNode.textContent = Number.isFinite(change) ? (change > 0 ? '+' : '') + change.toFixed(2) + '%' : '—';
+      changeNode.classList.toggle('central-widget-card__kospi-change--up', fresh && change > 0);
+      changeNode.classList.toggle('central-widget-card__kospi-change--down', fresh && change < 0);
     }
-    paint('usdkrw', fx, 'fx');
+    if (metaNode) metaNode.textContent = record
+      ? (fresh ? '실시간 · ' : '장 마감/지연 · ') + (id === 'usdkrw' ? 'USD/KRW' : '국제 금 현물 · 원화/g')
+        + (record.time ? ' · ' + formatTime(record.time) : '')
+      : '실시간 시세 연결 중';
+    chart?.classList.toggle('central-widget-card__sparkline--up', fresh && record?.changePct > 0);
+    chart?.classList.toggle('central-widget-card__sparkline--down', fresh && record?.changePct < 0);
+    draw(card, state[id].points);
   }
 
-  async function fetchGold() {
-    goldAttemptAt = Date.now();
+  async function getJson(url) {
+    const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(7000) });
+    if (!response.ok) throw new Error('Market quote HTTP ' + response.status);
+    return response.json();
+  }
+
+  async function loadHistory(id, symbol, fxRate = null) {
+    if (state[id].historyLoaded) return;
+    state[id].historyLoaded = true;
     try {
-      const response = await fetch(GOLD_URL, { cache: 'default', signal: AbortSignal.timeout(8000) });
-      if (!response.ok) throw new Error('Gold HTTP ' + response.status);
-      const data = await response.json();
-      const value = Number(data?.xau?.price);
-      const status = data?.data_state?.status;
-      if (!Number.isFinite(value) || value <= 0 || data?.xau?.currency !== 'KRW'
-          || data?.xau?.unit !== 'gram' || status === 'unavailable') {
-        throw new Error('Invalid gold payload');
+      const data = await getJson(HISTORY_URL(symbol));
+      const bars = Array.isArray(data?.bars) ? data.bars.slice().reverse() : [];
+      for (const bar of bars) {
+        const close = number(bar?.close);
+        if (close === null || close <= 0) continue;
+        const price = id === 'gold' && fxRate ? close * fxRate / GRAMS_PER_TROY_OUNCE : close;
+        appendPoint(id, price, bar.openTime);
       }
-      const stale = Boolean(data.stale || status === 'stale' || data.fx_stale || (status && status !== 'fresh'));
-      const observedAt = data.data_state?.as_of || data.updated_at;
-      const parts = ['국제 현물 · 원화/g'];
-      if (observedAt) parts.push(formatDate(observedAt));
-      if (data.fx_stale) parts.push('환율 환산 갱신 지연');
-      gold = {
-        value,
-        meta: parts.join(' · '),
-        state: stale ? '이전 관측값' : 'XAUS 참고 시세',
-        stale
-      };
     } catch (_) {
-      if (gold) gold = { ...gold, stale: true, state: '마지막 정상값' };
+      state[id].historyLoaded = false;
     }
-    paint('gold', gold, 'gold');
   }
 
-  async function refresh(force = false) {
+  function makeRecord(tick, price, changePct, id) {
+    return {
+      price,
+      changePct,
+      time: tick.timestamp,
+      fresh: isFresh(tick),
+      marketState: tick.marketState || 'unknown',
+      source: 'biquote'
+    };
+  }
+
+  async function refresh() {
+    if (busy || document.hidden) return;
     const hasFx = Boolean(document.querySelector('[data-market-quote-widget="usdkrw"]'));
     const hasGold = Boolean(document.querySelector('[data-market-quote-widget="gold"]'));
-    if (document.hidden || (!hasFx && !hasGold)) return;
-    const now = Date.now();
-    const jobs = [];
-    const fxDue = !fx ? (!fxAttemptAt || now - fxAttemptAt >= RETRY_MS) : now - fxAttemptAt >= FX_REFRESH_MS;
-    const goldDue = !gold ? (!goldAttemptAt || now - goldAttemptAt >= RETRY_MS) : now - goldAttemptAt >= GOLD_REFRESH_MS;
-    if (hasFx && (force || fxDue)) jobs.push(fetchFx());
-    if (hasGold && (force || goldDue)) jobs.push(fetchGold());
-    await Promise.all(jobs);
+    if (!hasFx && !hasGold) return;
+    busy = true;
+    try {
+      const [fxTick, goldTick] = await Promise.all([
+        hasFx || hasGold ? getJson(API + 'USDKRW') : Promise.resolve(null),
+        hasGold ? getJson(API + 'XAUUSD') : Promise.resolve(null)
+      ]);
+      const fxRate = number(fxTick?.mid);
+      const goldUsd = number(goldTick?.mid);
+      if (fxRate !== null && fxRate > 0) {
+        const fxChange = number(fxTick?.dayDiffPercent);
+        const fxRecord = makeRecord(fxTick, fxRate, fxChange, 'usdkrw');
+        state.usdkrw.record = fxRecord;
+        appendPoint('usdkrw', fxRate, fxTick.timestamp);
+        if (hasFx) paint('usdkrw');
+      }
+      if (hasGold && fxRate !== null && fxRate > 0 && goldUsd !== null && goldUsd > 0) {
+        const goldChange = number(goldTick?.dayDiffPercent);
+        const fxChange = number(fxTick?.dayDiffPercent);
+        const combinedChange = goldChange === null || fxChange === null
+          ? null : ((1 + goldChange / 100) * (1 + fxChange / 100) - 1) * 100;
+        const goldPrice = goldUsd * fxRate / GRAMS_PER_TROY_OUNCE;
+        const fresh = isFresh(goldTick) && isFresh(fxTick);
+        state.gold.record = { ...makeRecord(goldTick, goldPrice, combinedChange, 'gold'), fresh };
+        appendPoint('gold', goldPrice, goldTick.timestamp);
+        paint('gold');
+      }
+      if (hasFx || hasGold) {
+        const historyJobs = [];
+        if (hasFx) historyJobs.push(loadHistory('usdkrw', 'USDKRW'));
+        if (hasGold) historyJobs.push(loadHistory('gold', 'XAUUSD', fxRate));
+        await Promise.all(historyJobs);
+        if (hasFx) paint('usdkrw');
+        if (hasGold) paint('gold');
+      }
+    } catch (_) {
+      for (const id of ['usdkrw', 'gold']) {
+        if (document.querySelector('[data-market-quote-widget="' + id + '"]')) {
+          const record = state[id].record;
+          if (record) record.fresh = false;
+          paint(id);
+        }
+      }
+    } finally {
+      busy = false;
+    }
   }
 
   function mount() {
-    paint('usdkrw', fx, 'fx');
-    paint('gold', gold, 'gold');
+    paint('usdkrw');
+    paint('gold');
     void refresh();
-    if (!timer) timer = window.setInterval(() => { void refresh(); }, GOLD_REFRESH_MS);
+    if (!timer) timer = window.setInterval(() => { void refresh(); }, POLL_MS);
   }
 
   document.addEventListener('visibilitychange', () => {
