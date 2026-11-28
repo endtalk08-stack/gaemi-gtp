@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="css/memo-pad.css?v=20261005-v2">
   <link rel="stylesheet" href="css/sketch-pad.css?v=20261005-v1">
   <link rel="stylesheet" href="shell/left-sidebar-home/left-sidebar-home.css?v=20261012-sidebar-recent-v1">
+  <link rel="stylesheet" href="widgets/schedule/schedule.css?v=20261128-schedule-v1">
   <link rel="stylesheet" href="shell/left-context-sidebar/context-sidebar.css?v=20261005-header-system-v1">
   <link rel="stylesheet" href="shell/left-market-sidebar/market-sidebar.css?v=20261125-industry-widget-transparent-v1">
 
@@ -64,14 +65,11 @@
 
     <div id="leftSidebarHomeDefault" class="left-sidebar-home__body">
       <div class="left-sidebar-home__sections">
-        <section class="left-sidebar-home__section" aria-labelledby="leftSidebarProjectsTitle">
+        <section class="left-sidebar-home__section" aria-labelledby="leftSidebarScheduleTitle">
           <div class="left-sidebar-home__section-head">
-            <h2 id="leftSidebarProjectsTitle" class="left-sidebar-home__section-title"><i data-lucide="folder-kanban" aria-hidden="true"></i><span>프로젝트</span></h2>
-            <button type="button" class="left-sidebar-home__section-menu" aria-label="프로젝트 관리 메뉴" title="프로젝트 관리 메뉴" data-left-home-section-menu="projects">
-              <i data-lucide="ellipsis" aria-hidden="true"></i>
-            </button>
+            <h2 id="leftSidebarScheduleTitle" class="left-sidebar-home__section-title"><i data-lucide="calendar-days" aria-hidden="true"></i><span>주요일정</span></h2>
           </div>
-          <div class="left-sidebar-home__empty">프로젝트가 여기에 표시됩니다</div>
+          <div data-schedule-root></div>
         </section>
 
         <section class="left-sidebar-home__section" aria-labelledby="leftSidebarPluginsTitle">
@@ -429,6 +427,7 @@
   <script src="widgets/market-quotes/market-quotes-widget.js?v=20261128-uniform-cards-v1"></script>
   <script src="widgets/market-indicators/market-indicators-widget.js?v=20261128-biquote-live-dxy-wti-v2"></script>
   <script src="shell/left-sidebar-home/left-sidebar-home.js?v=20261018-mode-sessions-v1"></script>
+  <script src="widgets/schedule/schedule.js?v=20261128-schedule-v1"></script>
   <script src="theme/theme.js?v=20260924-v712"></script>
   <script src="pages/dashboard/dashboard.js?v=20260925-v85-full"></script>
   <script src="js/disclosures.js?v=20261020-disclosures-restore-v1"></script>
