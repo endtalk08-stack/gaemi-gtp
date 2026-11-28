@@ -1,3 +1,1 @@
-{
-  "operation": "status"
-}
+{"operation":"run","path":"ops/do-gateway/publish_ai_now_A_20261128.py","request_id":"publish-ai-now-a-20261128","timeout":900}
