@@ -78,6 +78,7 @@ jobs:
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
           node --test tests/test_sidebar_issue_sync.cjs
+          node tests/test_us_close_ui.js
           grep -Fq 'const renderIndustryMap = (data) =>' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq 'industry-map-sector' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq 'industry-map-stock' frontend/shell/left-market-sidebar/market-sidebar.js
