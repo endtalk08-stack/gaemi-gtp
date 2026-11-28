@@ -12,6 +12,7 @@ test('five macro indicators are registered and use the existing movable widget c
   );
   const w = dom.window;
   w.setInterval = () => 0;
+  Object.defineProperty(w.document, 'hidden', { value: false });
   w.AbortSignal = { timeout: () => ({}) };
   const expected = [
     { id: 'us-2y', value: 4.1, change: 1.2, change_unit: 'bp', source: 'FRED', delay: '일간' },
