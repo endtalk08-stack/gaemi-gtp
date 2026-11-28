@@ -78,6 +78,8 @@ jobs:
           node --check frontend/shell/left-market-sidebar/market-sidebar.js
           node --check frontend/shell/center-chat/widget-dock/widget-dock.js
           node --check frontend/widgets/market-indicators/market-indicators-widget.js
+          python -m py_compile backend/kis_night_futures_feed.py backend/kiwoom_us_top20_api.py
+          python -m unittest discover -s tests -p 'test_kis_night_futures_feed.py'
           node --test tests/test_sidebar_issue_sync.cjs
           grep -Fq 'const renderIndustryMap = (data) =>' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq 'industry-map-sector' frontend/shell/left-market-sidebar/market-sidebar.js
@@ -92,6 +94,8 @@ jobs:
           grep -Fq '.industry-map-stock.is-down' frontend/shell/left-market-sidebar/market-sidebar.css
           grep -Fq 'wss://quotes.gaemigtp.com/ws/us-live-quotes' frontend/shell/left-market-sidebar/market-sidebar.js
           grep -Fq "window.addEventListener('gaemi:qqq-quote', onQqqQuote)" frontend/shell/center-chat/widget-dock/widget-dock.js
+          grep -Fq "window.addEventListener('gaemi:night-futures-quote', onNightFuturesQuote)" frontend/shell/center-chat/widget-dock/widget-dock.js
+          grep -Fq "message?.type === 'night-futures-quote'" frontend/shell/left-market-sidebar/market-sidebar.js
           ! grep -Fq 'data-panel-workspace-view="news"' frontend/shell/right-panel/right-panel-tabs.js
           ! grep -Fq 'renderTradingViewNewsPage' frontend/shell/right-panel/right-panel-tabs.js
           grep -Fq 'data-panel-workspace-view="disclosures"' frontend/shell/right-panel/right-panel-tabs.js
