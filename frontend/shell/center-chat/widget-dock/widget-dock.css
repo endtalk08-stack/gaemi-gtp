@@ -395,3 +395,29 @@
 .central-widget-card__night-status[data-state="live"] { color: var(--gtp-text); }
 .central-widget-card__night-status[data-state="disconnected"],
 .central-widget-card__night-status[data-state="credentials-missing"] { color: var(--gtp-faint); }
+
+
+/* ---- One look for every quote card (2026-11-28) -------------------------------
+   No chart; name, price and change in the same sizes; never faded. Live or
+   closed only changes the numbers, so nothing flickers or turns gray. */
+.central-widget-card--kospi .central-widget-card__sparkline { display: none !important; }
+.central-widget-card--kospi .central-widget-card__kospi-body { grid-template-columns: minmax(0, 1fr) !important; }
+.central-widget-card--kospi .central-widget-card__kospi-title {
+  color: var(--gtp-text) !important; font-size: 13px !important; font-weight: 700 !important; line-height: 18px !important;
+}
+.central-widget-card--kospi .central-widget-card__kospi-market-name {
+  color: var(--gtp-faint) !important; font-size: 11px !important; font-weight: 500 !important;
+}
+.central-widget-card--kospi .central-widget-card__kospi-market { justify-content: space-between !important; gap: 4px !important; }
+.central-widget-card--kospi .central-widget-card__kospi-market strong,
+.central-widget-card--kospi .central-widget-card__kospi-change {
+  color: var(--gtp-text); font-size: 20px !important; font-weight: 700 !important;
+  line-height: 24px !important; letter-spacing: -.4px;
+}
+.central-widget-card--kospi.central-widget-card--qqq-muted { opacity: 1 !important; }
+.central-widget-card--kospi.central-widget-card--qqq-muted .central-widget-card__kospi-row,
+.central-widget-card--kospi.central-widget-card--qqq-muted .central-widget-card__kospi-row > strong { color: var(--gtp-text); }
+.central-widget-card--kospi .central-widget-card__kospi-change--up { color: #ff4d67 !important; }
+.central-widget-card--kospi .central-widget-card__kospi-change--down { color: #3b82f6 !important; }
+/* Status words only when something is wrong (not for live / closed). */
+.central-widget-card__night-status:not([data-state="disconnected"]):not([data-state="credentials-missing"]) { display: none; }

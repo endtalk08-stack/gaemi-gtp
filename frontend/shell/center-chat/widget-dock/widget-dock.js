@@ -354,8 +354,9 @@
       ? quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       : '—';
     changeNode.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
-    changeNode.classList.toggle('central-widget-card__kospi-change--up', fresh && change > 0);
-    changeNode.classList.toggle('central-widget-card__kospi-change--down', fresh && change < 0);
+    // Every card colours a known change the same way, live or closed.
+    changeNode.classList.toggle('central-widget-card__kospi-change--up', change !== null && change > 0);
+    changeNode.classList.toggle('central-widget-card__kospi-change--down', change !== null && change < 0);
     chartNode?.classList.toggle('central-widget-card__sparkline--up', fresh && change !== null && change > 0);
     chartNode?.classList.toggle('central-widget-card__sparkline--down', fresh && change !== null && change < 0);
     drawQqqChart(card);

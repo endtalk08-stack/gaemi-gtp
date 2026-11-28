@@ -60,8 +60,8 @@
     if (pct) {
       const change = record?.changePct;
       pct.textContent = Number.isFinite(change) ? (change > 0 ? '+' : '') + change.toFixed(2) + '%' : '—';
-      pct.classList.toggle('central-widget-card__kospi-change--up', record?.fresh && change > 0);
-      pct.classList.toggle('central-widget-card__kospi-change--down', record?.fresh && change < 0);
+      pct.classList.toggle('central-widget-card__kospi-change--up', Number.isFinite(change) && change > 0);
+      pct.classList.toggle('central-widget-card__kospi-change--down', Number.isFinite(change) && change < 0);
     }
     chart?.classList.toggle('central-widget-card__sparkline--up', record?.fresh && record.changePct > 0);
     chart?.classList.toggle('central-widget-card__sparkline--down', record?.fresh && record.changePct < 0);
