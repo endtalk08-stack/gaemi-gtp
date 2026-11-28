@@ -36,7 +36,7 @@
         (item.id === 'us-2y' || item.id === 'us-10y' ? '%' : '');
     }
     if (change) {
-      if (!item.ok || !Number.isFinite(item.change)) {
+      if (!item.ok || item.fresh === false || !Number.isFinite(item.change)) {
         change.textContent = '—';
       } else if (item.change_unit === 'bp') {
         change.textContent = (item.change > 0 ? '+' : '') + number(item.change, 1) + 'bp';
