@@ -35,6 +35,7 @@ test('Dollar Index and WTI use the BiQuote live quote feed and existing movable 
     const card = w.document.querySelector('[data-central-widget-id="' + id + '"]');
     assert.ok(card);
     assert.ok(card.classList.contains('central-widget-card--kospi'));
+    if (id === 'dollar-index') assert.equal(card.querySelector('.central-widget-card__kospi-title span').textContent, '달러 인덱스');
     assert.ok(card.querySelector('[data-market-indicator-value]'));
   }
   for (const id of ['us-2y', 'us-10y', 'vix']) assert.equal(w.GaemiGTPWidgetCatalog[id], undefined);
