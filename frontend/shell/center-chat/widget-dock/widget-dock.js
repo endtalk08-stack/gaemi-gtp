@@ -577,6 +577,12 @@
           <section class="gnw-root" data-gnw-root aria-label="뉴스 검색과 목록"></section>
         </article>`;
       }
+      if (id === 'schedule') {
+        return `<article class="central-widget-card central-widget-card--schedule" data-central-widget-id="schedule" aria-label="주요일정 위젯">
+          <div class="central-widget-card__schedule-title">주요일정</div>
+          <div data-schedule-root></div>
+        </article>`;
+      }
       if (id === 'news-caption') {
         return `<article class="central-widget-card central-widget-card--news-caption" data-central-widget-id="news-caption" aria-label="속보 위젯">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="news-caption" onclick="window.GaemiGTPWidgetDock.remove('news-caption')" aria-label="속보 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
@@ -683,6 +689,7 @@
       if (cards.has('news-feed')) cards.get('news-feed').dataset.newsMounted = 'true';
     }
     window.GaemiGTPIndustryWidget?.mount?.();
+    if (activeIds.includes('schedule')) window.GaemiGTPSchedule?.render?.();
     window.dispatchEvent(new CustomEvent('gaemi:widget-change'));
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('qqq')) updateQqqCard();

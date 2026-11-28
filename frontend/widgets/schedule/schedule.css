@@ -32,3 +32,7 @@
   .gsc-row > .gsc-pending { grid-column: 2 / -1; }
   .gsc-row--head { display: none; }
 }
+
+/* 주요일정 as a dock widget: full width like the news widget. */
+.central-widget-card--schedule { grid-column: 1 / -1; min-width: 0; padding: 10px 8px; }
+.central-widget-card__schedule-title { margin: 0 0 6px; padding: 0 6px; color: var(--gtp-text); font-size: 13px; font-weight: 700; }

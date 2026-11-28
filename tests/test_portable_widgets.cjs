@@ -249,7 +249,7 @@ test('left sidebar keeps all market tabs and restores moved widgets after refres
   assert.equal(marketSidebar.includes('시장 시세'), false);
   assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
   assert.match(html, /market-sidebar\.js\?v=20261128-kis-night-futures-v1/);
-  assert.match(html, /widget-dock\.js\?v=20261128-uniform-cards-v1/);
+  assert.match(html, /widget-dock\.js\?v=20261128-schedule-widget-v1/);
   secondDom.window.close();
 });
 
@@ -319,5 +319,33 @@ test('KIS night futures widget keeps the closing price outside trading hours (ne
   // A dropped connection afterwards keeps the price on screen.
   w.dispatchEvent(new w.CustomEvent('gaemi:night-futures-quote', { detail: { connected: false, status: 'disconnected' } }));
   assert.equal(card.querySelector('[data-night-futures-price]').textContent, '760.05');
+  dom.window.close();
+});
+
+test('주요일정 widget renders the same weekly table as the sidebar', () => {
+  const dom = new JSDOM(
+    '<main id="mainContent"><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section></main>',
+    { url: 'https://example.test', runScripts: 'outside-only' }
+  );
+  const w = dom.window;
+  w.setInterval = () => 0;
+  w.fetch = async () => ({ ok: false });
+  w.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
+  w.eval(readFileSync('frontend/widgets/schedule/schedule.js', 'utf8'));
+  w.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
+  const dock = w.GaemiGTPWidgetDock;
+  dock.initialize();
+  assert.equal(dock.add('schedule'), true);
+  const card = w.document.querySelector('[data-central-widget-id="schedule"]');
+  assert.equal(card.querySelector('.gsc-placeholder').textContent, '주요일정이 여기에 표시됩니다');
+  w.GaemiGTPSchedule.setItems([
+    { time: '2026-11-25T15:00:00Z', title: '신규주택 매매건수 발표', country: 'US', actual: '70.1만 건', forecast: '65만 건', previous: '67.6만 건' },
+    { time: '2026-12-01T15:00:00Z', title: 'ISM 제조업 구매관리자지수 발표', country: 'US' },
+  ]);
+  assert.deepEqual([...card.querySelectorAll('.gsc-week__title')].map(n => n.textContent), ['11월 4주차', '12월 1주차']);
+  assert.equal(card.querySelector('.gsc-num--actual').textContent, '70.1만 건');
+  assert.ok(card.querySelector('.gsc-num--actual').classList.contains('gsc-num--up'));
+  assert.equal(card.querySelector('.gsc-pending').textContent, '오전 12시 발표 예정');
+  assert.equal(card.querySelector('.gsc-date').textContent, '26일 (목)');
   dom.window.close();
 });

@@ -56,9 +56,11 @@
       + '<span class="gsc-num gsc-num--forecast">' + esc(item.forecast ?? '') + '</span>'
       + '<span class="gsc-num gsc-num--previous">' + esc(item.previous ?? '') + '</span></div>';
   }
+  // The same table in every place it is shown: the left sidebar section and the 주요일정 widget.
   function render() {
-    const host = document.querySelector('[data-schedule-root]');
-    if (!host) return;
+    document.querySelectorAll('[data-schedule-root]').forEach(renderInto);
+  }
+  function renderInto(host) {
     const valid = items.filter(i => i && typeof i.title === 'string' && Number.isFinite(Date.parse(i.time)))
       .sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
     if (!valid.length) { host.innerHTML = '<div class="gsc-placeholder">주요일정이 여기에 표시됩니다</div>'; return; }
