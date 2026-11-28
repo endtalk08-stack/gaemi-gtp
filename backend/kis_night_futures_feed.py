@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import math
@@ -9,6 +10,9 @@ import os
 import time
 import urllib.request
 from typing import Any, Callable
+
+from cryptography.hazmat.primitives import padding as symmetric_padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 REST_BASE = "https://openapi.koreainvestment.com:9443"
 WS_URL = "ws://ops.koreainvestment.com:21000"
@@ -88,7 +92,24 @@ def subscription_message(approval_key: str, tr_id: str, symbol: str) -> str:
     }, ensure_ascii=False, separators=(",", ":"))
 
 
-def decode_realtime_frame(frame: str, expected_symbol: str = DEFAULT_SYMBOL) -> dict[str, Any] | None:
+def _decrypt_payload(encoded: str, key: str, iv: str) -> str:
+    """Decrypt KIS AES-CBC/base64 realtime payloads using the subscription response."""
+    encrypted = base64.b64decode(encoded, validate=True)
+    decryptor = Cipher(
+        algorithms.AES(key.encode("utf-8")),
+        modes.CBC(iv.encode("utf-8")),
+    ).decryptor()
+    padded = decryptor.update(encrypted) + decryptor.finalize()
+    unpadder = symmetric_padding.PKCS7(algorithms.AES.block_size).unpadder()
+    plain = unpadder.update(padded) + unpadder.finalize()
+    return plain.decode("utf-8")
+
+
+def decode_realtime_frame(
+    frame: str,
+    expected_symbol: str = DEFAULT_SYMBOL,
+    encryption: dict[str, str] | None = None,
+) -> dict[str, Any] | None:
     """Decode KIS caret-delimited KRX night-futures trade or order-book data."""
     parts = frame.split("|", 3)
     if len(parts) < 4 or parts[0] not in {"0", "1"}:
@@ -97,7 +118,15 @@ def decode_realtime_frame(frame: str, expected_symbol: str = DEFAULT_SYMBOL) -> 
     fields = TRADE_FIELDS if tr_id == TRADES_TR_ID else QUOTE_FIELDS if tr_id == QUOTE_TR_ID else None
     if fields is None:
         return None
-    values = dict(zip(fields, parts[3].split("^")))
+    data = parts[3]
+    if parts[0] == "1":
+        if not encryption or not encryption.get("key") or not encryption.get("iv"):
+            return None
+        try:
+            data = _decrypt_payload(data, encryption["key"], encryption["iv"])
+        except Exception:
+            return None
+    values = dict(zip(fields, data.split("^")))
     symbol = str(values.get("futs_shrn_iscd") or parts[2]).strip()
     if symbol != expected_symbol:
         return None
@@ -154,6 +183,7 @@ async def run_kis_night_futures_feed(
 
     retry_delay = 5
     while True:
+        encryption_keys: dict[str, dict[str, str]] = {}
         try:
             approval_key = await asyncio.to_thread(get_approval_key, app_key, app_secret)
             async with connect(
@@ -178,13 +208,21 @@ async def run_kis_night_futures_feed(
                             continue
                         header = payload.get("header") or {}
                         body = payload.get("body") or {}
-                        if header.get("tr_id") == "PINGPONG":
-                            await websocket.send(raw)
+                        response_tr_id = header.get("tr_id")
+                        output = body.get("output") or {}
+                        if response_tr_id and output.get("key") and output.get("iv"):
+                            encryption_keys[response_tr_id] = {
+                                "key": str(output["key"]), "iv": str(output["iv"]),
+                            }
+                        if response_tr_id == "PINGPONG":
+                            await websocket.pong(raw.encode("utf-8"))
                         elif body and str(body.get("rt_cd", "0")) not in {"0", ""}:
                             logging.warning("KIS night-futures subscription response: %s",
                                             str(body.get("msg1") or "subscription_error")[:120])
                         continue
-                    decoded = decode_realtime_frame(raw, target)
+                    frame_parts = raw.split("|", 3)
+                    frame_tr_id = frame_parts[1] if len(frame_parts) > 1 else ""
+                    decoded = decode_realtime_frame(raw, target, encryption_keys.get(frame_tr_id))
                     if not decoded:
                         continue
                     decoded.update({
