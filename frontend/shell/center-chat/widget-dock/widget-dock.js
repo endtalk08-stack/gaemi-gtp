@@ -510,15 +510,15 @@
           <div class="central-widget-card__news-caption-title" data-news-caption-title>${escapeHtml(captionHeadline)}</div>
         </article>`;
       }
-      if (['dxy', 'wti'].includes(id)) {
+      if (['dollar-index', 'wti'].includes(id)) {
         const meta = catalog()[id];
-        const symbols = { dxy: 'DXY', wti: 'WTI' };
+        const marketNames = { 'dollar-index': '달러 인덱스', wti: 'WTI 원유' };
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}" data-market-indicator-widget="${escapeHtml(id)}">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${escapeHtml(meta.title)} 위젯 삭제" title="위젯 삭제">
             <i data-lucide="x" class="w-3 h-3"></i>
           </button>
-          <div class="central-widget-card__kospi-title"><span>${symbols[id]}</span><span class="central-widget-card__kospi-market-name" data-market-indicator-source>데이터 연결 중</span></div>
+          <div class="central-widget-card__kospi-title"><span>${marketNames[id]}</span><span class="central-widget-card__kospi-market-name" data-market-indicator-source>데이터 연결 중</span></div>
           <div class="central-widget-card__kospi-body" aria-label="${escapeHtml(meta.title)} 시세 흐름">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
               <defs>
@@ -610,7 +610,7 @@
     if (activeIds.includes('gold') || activeIds.includes('usdkrw')) {
       window.GaemiGTPMarketQuoteWidgets?.mount?.();
     }
-    if (activeIds.some(id => ['us-2y', 'us-10y', 'dxy', 'vix', 'wti'].includes(id))) {
+    if (activeIds.some(id => ['us-2y', 'us-10y', 'dollar-index', 'vix', 'wti'].includes(id))) {
       window.GaemiGTPMarketIndicators?.mount?.();
     }
     for (const symbol of Object.keys(marketEtfs)) {
