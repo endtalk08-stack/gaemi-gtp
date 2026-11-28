@@ -559,6 +559,38 @@ _MARKET_WIDGET_REST_LOCK = threading.Lock()
 _MARKET_WIDGET_REST_CACHE = {}
 _MARKET_WIDGET_REST_MAX_AGE_MS = 30 * 60 * 1000
 _QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
+_NIGHT_FUTURES_LOCK = threading.Lock()
+_NIGHT_FUTURES_STATE = {
+    "connected": False, "status": "waiting", "symbol": "101W9000",
+    "price": None, "change_pct": None, "received_at_ms": 0,
+}
+
+
+def _publish_night_futures(update):
+    """Keep only the latest public KIS quote and connection state in memory."""
+    if not isinstance(update, dict):
+        return
+    allowed = {
+        "connected", "status", "symbol", "price", "change_pct",
+        "received_at_ms", "time", "last_volume", "accumulated_volume",
+        "best_ask", "best_bid", "ask_quantity", "bid_quantity", "source",
+    }
+    clean = {key: value for key, value in update.items() if key in allowed}
+    with _NIGHT_FUTURES_LOCK:
+        _NIGHT_FUTURES_STATE.update(clean)
+
+
+def _night_futures_snapshot():
+    with _NIGHT_FUTURES_LOCK:
+        quote = dict(_NIGHT_FUTURES_STATE)
+    received = quote.get("received_at_ms")
+    quote["stale"] = (
+        not quote.get("connected")
+        or not isinstance(received, int)
+        or received <= 0
+        or int(time.time() * 1000) - received > 30000
+    )
+    return quote
 _QQQ_STALE_MS = 25000
 _QQQ_REST_STALE_MS = 65000
 _QQQ_REST_CACHE_LOCK = threading.Lock()
@@ -1184,6 +1216,18 @@ def _start_industry_warmer():
     threading.Thread(target=runner, name="us-industry-warmer", daemon=True).start()
 
 
+def _start_kis_night_futures_feed():
+    import asyncio
+    from backend.kis_night_futures_feed import run_kis_night_futures_feed
+
+    def runner():
+        asyncio.run(run_kis_night_futures_feed(_publish_night_futures))
+
+    thread = threading.Thread(target=runner, name="kis-night-futures", daemon=True)
+    thread.start()
+    print("KIS_NIGHT_FUTURES_THREAD_STARTED", flush=True)
+
+
 def _start_qqq_feed():
     import asyncio
     from backend.kiwoom_us_live_prices import run_qqq_fe_stream
@@ -1378,6 +1422,7 @@ class Handler(BaseHTTPRequestHandler):
             last_top20_message = None
             last_industry_message = None
             last_market_widget_message = None
+            last_night_futures_message = None
             while True:
                 quote = _qqq_snapshot()
                 signature = ((quote["received_at_ms"], quote["stale"])
@@ -1413,6 +1458,13 @@ class Handler(BaseHTTPRequestHandler):
                     if latest_market_widgets != last_market_widget_message:
                         self.connection.sendall(_websocket_text_frame(latest_market_widgets))
                         last_market_widget_message = latest_market_widgets
+                    latest_night_futures = json.dumps(
+                        {"type": "night-futures-quote", "quote": _night_futures_snapshot()},
+                        separators=(",", ":"), allow_nan=False,
+                    ).encode("utf-8")
+                    if latest_night_futures != last_night_futures_message:
+                        self.connection.sendall(_websocket_text_frame(latest_night_futures))
+                        last_night_futures_message = latest_night_futures
                     last_top20_at = now
                 with _QQQ_CHANGED:
                     _QQQ_CHANGED.wait(timeout=1.0)
@@ -1492,6 +1544,7 @@ def main():
         if tls:
             _start_qqq_feed()
             _start_industry_warmer()
+            _start_kis_night_futures_feed()
         server.serve_forever()
 
 
