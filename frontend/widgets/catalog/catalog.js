@@ -7,6 +7,8 @@
 
   window.GaemiGTPWidgetCatalog = Object.freeze({
     'qqq': { title: 'QQQ', icon: 'chart-no-axes-combined', description: '나스닥100 ETF 실시간 시세' },
+    'gold': { title: '금', icon: 'chart-no-axes-combined', description: '국제 금 현물 원화 환산 시세' },
+    'usdkrw': { title: '달러/원', icon: 'chart-no-axes-combined', description: '미국 달러 원화 환율' },
     'spy': { title: 'SPY', icon: 'chart-no-axes-combined', description: 'S&P 500 ETF 실시간 시세' },
     'dia': { title: 'DIA', icon: 'chart-no-axes-combined', description: '다우 ETF 실시간 시세' },
     'night-futures': { title: '코스피200 야간선물', icon: 'moon-star', description: '야간 선물 흐름' },
