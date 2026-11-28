@@ -96,6 +96,14 @@
 <script>
 (() => {
   const $ = id => document.getElementById(id);
+  // Pages preview and production serve this UI, while the authenticated Flask
+  // test API is hosted by the existing Render backend.
+  const pageHost = window.location.hostname;
+  const API_BASE = pageHost === 'gaemigtp-main.pages.dev'
+    || pageHost.endsWith('.gaemigtp-main.pages.dev')
+    || pageHost.endsWith('github.io')
+    ? 'https://gaemi-gtp.onrender.com'
+    : window.location.origin;
   const state = { current: 'issue', verified: false, config: null, inputs: {
     issue: {system_prompt:'',user_input:'',output_format:'auto'},
     close: {system_prompt:'',user_input:'',output_format:'auto'}
@@ -156,7 +164,7 @@
     renderResult();
   }
   async function api(path,payload) {
-    const response = await fetch(path,{
+    const response = await fetch(API_BASE + path,{
       method: payload ? 'POST':'GET',
       cache:'no-store',
       credentials:'same-origin',
