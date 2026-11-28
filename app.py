@@ -69,7 +69,7 @@ def market_us_close():
             "ok": True,
             "available": True,
             "session_date": session_date,
-            "content": "\\n\\n".join(lines),
+            "content": "\n\n".join(lines),
             "presentation": {
                 "session_date_et": session_date,
                 "market_indices": indices,
