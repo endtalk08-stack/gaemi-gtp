@@ -848,6 +848,7 @@
     // Share one DigitalOcean socket between QQQ, the visible ranking, and the chart.
     const qqqWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('qqq') === true;
     const marketEtfWidgetActive = () => ['spy', 'dia'].some(id => window.GaemiGTPWidgetDock?.isActive?.(id) === true);
+    const nightFuturesWidgetActive = () => window.GaemiGTPWidgetDock?.isActive?.('night-futures') === true;
     const quoteConsumersActive = () =>
       window.GaemiGTPWidgetDock?.isInlineChartActive?.() === true;
     let qqqSocket = null;
@@ -856,7 +857,7 @@
     let qqqReconnectDelay = 1000;
     const qqqSocketWanted = () =>
       document.visibilityState === 'visible'
-      && (qqqWidgetActive() || marketEtfWidgetActive() || industryViewActive() || (sidebarActive() && (tab === 'value' || tab === 'industry')) || quoteConsumersActive());
+      && (qqqWidgetActive() || marketEtfWidgetActive() || nightFuturesWidgetActive() || industryViewActive() || (sidebarActive() && (tab === 'value' || tab === 'industry')) || quoteConsumersActive());
     const dispatchQqqQuote = (quote) => {
       if (quote?.symbol === 'QQQ') {
         marketQqqQuote = quote;
@@ -882,6 +883,11 @@
       publishLiveQuotes([]);
       publishIndustryQuotes([]);
       publishMarketEtfQuotes([]);
+      if (nightFuturesWidgetActive()) {
+        window.dispatchEvent(new CustomEvent('gaemi:night-futures-quote', {
+          detail: { connected: false, status: 'disconnected' }
+        }));
+      }
     };
     const scheduleQqqReconnect = (generation) => {
       if (!qqqSocketWanted() || generation !== qqqSocketGeneration || qqqReconnectTimer !== null) return;
@@ -919,6 +925,11 @@
           if (message?.type === 'quotes' && Array.isArray(message.items)) publishLiveQuotes(message.items);
           if (message?.type === 'industry-quotes' && Array.isArray(message.items)) publishIndustryQuotes(message.items);
           if (message?.type === 'market-etf-quotes' && Array.isArray(message.items)) publishMarketEtfQuotes(message.items);
+          if (message?.type === 'night-futures-quote') {
+            window.dispatchEvent(new CustomEvent('gaemi:night-futures-quote', {
+              detail: message.quote || { connected: false, status: 'disconnected' }
+            }));
+          }
         } catch (_) {
           // Ignore malformed frames; the next valid quote will refresh the card.
         }
@@ -933,6 +944,11 @@
         publishLiveQuotes([]);
         publishIndustryQuotes([]);
         publishMarketEtfQuotes([]);
+        if (nightFuturesWidgetActive()) {
+          window.dispatchEvent(new CustomEvent('gaemi:night-futures-quote', {
+            detail: { connected: false, status: 'disconnected' }
+          }));
+        }
         scheduleQqqReconnect(generation);
       };
     };
