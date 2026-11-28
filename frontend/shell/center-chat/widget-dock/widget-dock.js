@@ -512,7 +512,7 @@
       }
       if (['dollar-index', 'wti'].includes(id)) {
         const meta = catalog()[id];
-        const marketNames = { 'dollar-index': '달러 인덱스', wti: '유가' };
+        const marketNames = { 'dollar-index': 'DXY 달러인덱스', wti: 'WTI 유가' };
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}" data-market-indicator-widget="${escapeHtml(id)}">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${escapeHtml(meta.title)} 위젯 삭제" title="위젯 삭제">
