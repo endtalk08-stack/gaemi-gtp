@@ -184,7 +184,7 @@ def lab_news_run():
         )
         if status != "ok":
             return jsonify({
-                "ok": False, "status": status, "symbol": symbol, "name": name,
+                "ok": True, "test_only": True, "status": status, "symbol": symbol, "name": name,
                 "diagnostics": diagnostics or {},
                 "message": ("조건에 맞는 최신 뉴스가 없습니다." if status == "no_news"
                             else "AI 응답이 뉴스 위젯 검증 규칙을 통과하지 못했습니다."),
