@@ -238,7 +238,7 @@
       const expanded = sectionToggle.getAttribute('aria-expanded') !== 'false';
       sectionToggle.setAttribute('aria-expanded', String(!expanded));
       const sectionName = {
-        watchlist: '관심종목', plugins: '플러그인', recent: '최근'
+        watchlist: '관심종목', plugins: '플러그인', recent: '최근', schedule: '주요일정'
       }[sectionToggle.dataset.leftHomeSectionToggle] || '메뉴';
       sectionToggle.setAttribute('aria-label', `${sectionName} ${expanded ? '펼치기' : '접기'}`);
       sectionToggle.setAttribute('title', sectionToggle.getAttribute('aria-label'));
