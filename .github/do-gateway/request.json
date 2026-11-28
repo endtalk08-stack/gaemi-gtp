@@ -1,1 +1,3 @@
-{"operation":"run","path":"ops/do-gateway/inspect_ai_article_lengths_20261128.py","request_id":"ai-article-lengths-20261128c","timeout":300}
+{
+  "operation": "status"
+}
