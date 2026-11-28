@@ -1048,6 +1048,7 @@
     };
     window.addEventListener('gaemi:qqq-placement', syncQqqSocket);
     window.addEventListener('gaemi:market-widget-placement', syncQqqSocket);
+    window.addEventListener('gaemi:widget-change', syncQqqSocket);
     document.addEventListener('visibilitychange', refreshOnReturn);
     window.addEventListener('focus', refreshOnReturn);
 
