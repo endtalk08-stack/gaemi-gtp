@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { JSDOM } = require('jsdom');
 
-test('DXY and WTI use the BiQuote live quote feed and existing movable widget cards', async () => {
+test('Dollar Index and WTI use the BiQuote live quote feed and existing movable widget cards', async () => {
   const dom = new JSDOM(
     '<main id="mainContent"><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section></main>' +
     '<aside id="leftMarketSidebar"><div class="flex-1 overflow-y-auto"></div></aside>' +
@@ -29,7 +29,7 @@ test('DXY and WTI use the BiQuote live quote feed and existing movable widget ca
   const dock = w.GaemiGTPWidgetDock;
   dock.initialize();
 
-  for (const id of ['dxy', 'wti']) {
+  for (const id of ['dollar-index', 'wti']) {
     assert.ok(w.GaemiGTPWidgetCatalog[id]);
     assert.equal(dock.add(id), true);
     const card = w.document.querySelector('[data-central-widget-id="' + id + '"]');
@@ -41,7 +41,7 @@ test('DXY and WTI use the BiQuote live quote feed and existing movable widget ca
 
   w.eval(readFileSync('frontend/widgets/market-indicators/market-indicators-widget.js', 'utf8'));
   await w.GaemiGTPMarketIndicators.refresh();
-  for (const id of ['dxy', 'wti']) {
+  for (const id of ['dollar-index', 'wti']) {
     const card = w.document.querySelector('[data-market-indicator-widget="' + id + '"]');
     assert.ok(card.querySelector('[data-market-indicator-value]').textContent !== '—');
     assert.match(card.querySelector('[data-market-indicator-source]').textContent, /BiQuote · 실시간/);
