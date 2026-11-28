@@ -17,7 +17,7 @@ test('Dollar Index and WTI use the BiQuote live quote feed and existing movable 
     if (String(url).includes('/latest?')) return {
       ok: true,
       json: async () => ({
-        DXY: { mid: 100.2, dayDiffPercent: 0.3, timestamp: new Date().toISOString(), marketState: 'open', stale: false, quoteAgeSeconds: 0 },
+        DXY: { mid: 100.2, dayDiffPercent: 0.3, timestamp: new Date().toISOString(), marketState: 'closed', stale: true, quoteAgeSeconds: 600 },
         USOIL: { mid: 62.5, dayDiffPercent: -0.4, timestamp: new Date().toISOString(), marketState: 'open', stale: false, quoteAgeSeconds: 0 }
       })
     };
@@ -35,7 +35,7 @@ test('Dollar Index and WTI use the BiQuote live quote feed and existing movable 
     const card = w.document.querySelector('[data-central-widget-id="' + id + '"]');
     assert.ok(card);
     assert.ok(card.classList.contains('central-widget-card--kospi'));
-    assert.equal(card.querySelector('.central-widget-card__kospi-title span').textContent, id === 'dollar-index' ? '달러 인덱스' : '유가');
+    assert.equal(card.querySelector('.central-widget-card__kospi-title span').textContent, id === 'dollar-index' ? 'DXY 달러인덱스' : 'WTI 유가');
     assert.ok(card.querySelector('[data-market-indicator-value]'));
   }
   for (const id of ['us-2y', 'us-10y', 'vix']) assert.equal(w.GaemiGTPWidgetCatalog[id], undefined);
@@ -45,7 +45,7 @@ test('Dollar Index and WTI use the BiQuote live quote feed and existing movable 
   for (const id of ['dollar-index', 'wti']) {
     const card = w.document.querySelector('[data-market-indicator-widget="' + id + '"]');
     assert.ok(card.querySelector('[data-market-indicator-value]').textContent !== '—');
-    assert.match(card.querySelector('[data-market-indicator-source]').textContent, /BiQuote · 실시간/);
+    assert.equal(card.querySelector('[data-market-indicator-source]').textContent, '');
     assert.notEqual(card.querySelector('[data-market-indicator-change]').textContent, '—');
     assert.equal(dock.move(id, 'right'), true);
   }
