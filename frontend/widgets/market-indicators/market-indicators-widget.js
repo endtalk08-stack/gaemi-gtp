@@ -60,9 +60,9 @@
       : '—';
     if (change) {
       const pct = record?.changePct;
-      change.textContent = record?.fresh && Number.isFinite(pct) ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '—';
-      change.classList.toggle('central-widget-card__kospi-change--up', record?.fresh && pct > 0);
-      change.classList.toggle('central-widget-card__kospi-change--down', record?.fresh && pct < 0);
+      change.textContent = Number.isFinite(pct) ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '—';
+      change.classList.toggle('central-widget-card__kospi-change--up', Number.isFinite(pct) && pct > 0);
+      change.classList.toggle('central-widget-card__kospi-change--down', Number.isFinite(pct) && pct < 0);
     }
     if (source) source.textContent = record?.fresh ? 'BiQuote · 실시간' : '';
     chart?.classList.toggle('central-widget-card__sparkline--up', record?.fresh && record.changePct > 0);
