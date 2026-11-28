@@ -17,6 +17,11 @@
   scrollbar-gutter:stable;
   color:var(--gtp-text); font-family:var(--gtp-font-family); font-size:15px;
 }
+.gnw-head {
+  position:sticky; top:0; z-index:3;
+  background:var(--gtp-bg, #121316);
+  padding-bottom:0;
+}
 .gnw-search {
   display:flex; align-items:center; gap:10px; height:46px; box-sizing:border-box; padding:0 14px;
   background:var(--gtp-surface); margin-bottom:8px; min-width:0;
