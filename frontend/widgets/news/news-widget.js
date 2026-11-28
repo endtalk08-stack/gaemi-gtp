@@ -129,6 +129,7 @@
     const matchesAll=currentItems().filter(matches);
     const rows=matchesAll.slice(0,visible);
     host.innerHTML = `
+      <div class="gnw-head">
       <div class="gnw-search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
         <input type="search" data-gnw-search placeholder="검색어를 입력하세요" aria-label="뉴스 검색" value="${escape(query)}">
@@ -136,6 +137,7 @@
       </div>
       <div class="gnw-categories" role="group" aria-label="뉴스 분류">
         ${CATEGORIES.map(c=>`<button type="button" data-gnw-cat="${escape(c)}" class="gnw-category${c===selected?' is-active':''}" aria-pressed="${c===selected?'true':'false'}">${escape(c)}</button>`).join('')}
+      </div>
       </div>
       <div class="gnw-list">
         ${selected===AI_CATEGORY ? renderAiList() : selected==='전체' ? renderAllList() : rows.map(renderListItem).join('')}
@@ -192,12 +194,30 @@
       ${item.url ? `<a class="gnw-source-link" href="${escape(item.url)}" target="_blank" rel="noopener noreferrer">기사 원문 ↗</a>` : ''}
     `;
   }
+  // The widget ends at the bottom of the screen whatever sits above it (quote cards),
+  // so the list always scrolls to its last article.
+  function fitHeight() {
+    const host=widget()?.querySelector('[data-gnw-root]');
+    if(!host)return;
+    const top=host.getBoundingClientRect().top;
+    host.style.maxHeight=Math.max(240, Math.floor(window.innerHeight - Math.max(top, 0) - 12))+'px';
+  }
+  let fitObserver=null;
+  function watchHeight() {
+    window.addEventListener('resize',fitHeight);
+    const dock=document.getElementById('centralWidgetDockBody');
+    if(dock && 'ResizeObserver' in window && !fitObserver){
+      fitObserver=new ResizeObserver(()=>fitHeight());
+      fitObserver.observe(dock);
+    }
+  }
   function render() {
     const host=widget()?.querySelector('[data-gnw-root]');
     if(!host)return;
     if(detailId !== null)renderDetail(host);else renderList(host);
+    fitHeight();
   }
-  function mount() { render(); refreshAi(); syncAiRefresh(); ai()?.loadIntros?.(); }
+  function mount() { render(); refreshAi(); syncAiRefresh(); ai()?.loadIntros?.(); watchHeight(); }
   // Intros arrive after the first paint; refresh an open detail view.
   window.addEventListener('gaemi:us-company-intros',()=>{ if(detailId !== null) render(); });
   function setItems(raw) {

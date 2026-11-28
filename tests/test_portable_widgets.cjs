@@ -198,7 +198,7 @@ test('right panel constrains only vertical scrolling and keeps the moved news wi
   assert.match(dashboardCss, /panel-workspace\/panel-workspace\.css\?v=20261125-right-news-height-scroll-v2/);
   const html = readFileSync('frontend/index.html', 'utf8');
   assert.match(html, /dashboard\.css\?v=20261125-right-news-height-scroll-v2/);
-  assert.match(html, /news-widget\.css\?v=20261128-company-intro-v1/);
+  assert.match(html, /news-widget\.css\?v=20261128-sticky-filter-v1/);
 });
 
 
