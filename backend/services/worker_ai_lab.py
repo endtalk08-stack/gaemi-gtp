@@ -1,6 +1,7 @@
-"""Isolated, authenticated two-model prompt lab for the DigitalOcean AI settings.
+"""Isolated, authenticated prompt lab for worker AI and US news-widget analysis.
 
-No news collection, Neon writes, worker scheduling, or production AI changes.
+News-widget tests reuse the production article-selection/body/validation pipeline,
+but never publish to R2 or touch the daily production schedule.
 The default prompts/model parameters reflect read-only inspection of the live
 DigitalOcean worker on 2026-10-27 (not the potentially older ops-branch files).
 Provider requests run independently on Render with its configured Groq key.
@@ -96,9 +97,125 @@ def _token_usage(result):
 def lab_config():
     if not _allowed():
         return jsonify({"ok": False, "error": "unauthorized_or_disabled"}), 403
-    return jsonify({"ok": True, "models": CONFIG,
+    from backend import us_news_ai_daily as news_ai
+    models = dict(CONFIG)
+    models["news"] = {
+        "label": "미국 뉴스 위젯 분석",
+        "model": news_ai.MODEL,
+        "system_prompt": news_ai.SYSTEM_PROMPT,
+        "max_completion_tokens": 1500,
+        "response_format": "json_schema",
+    }
+    return jsonify({"ok": True, "models": models,
                     "mode": "independent_test_only",
-                    "provider": "Render Groq key; identical live DO model/prompt defaults"})
+                    "provider": "Render Groq key; news mode reuses the production US news pipeline"})
+
+
+@worker_ai_lab_bp.post("/api/worker-ai-test/news/run")
+def lab_news_run():
+    """Test one US stock through the real widget news pipeline, without publishing."""
+    if not _allowed():
+        return jsonify({"ok": False, "error": "unauthorized_or_disabled"}), 403
+    if (request.content_length or 0) > 75000:
+        return jsonify({"ok": False, "error": "request_too_large"}), 413
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "invalid_json"}), 400
+
+    from backend import us_news_ai_daily as news_ai
+    symbol = str(data.get("symbol") or "").strip().upper()
+    name = str(data.get("name") or "").strip()
+    industry = str(data.get("industry") or "").strip()
+    system_prompt = data.get("system_prompt", news_ai.SYSTEM_PROMPT)
+    if (not news_ai.SYMBOL.fullmatch(symbol) or not name or len(name) > 80
+            or len(industry) > 100 or not isinstance(system_prompt, str)
+            or not system_prompt.strip() or len(system_prompt) > 6000):
+        return jsonify({"ok": False, "error": "invalid_news_test_input"}), 400
+
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key:
+        return jsonify({"ok": False, "error": "provider_not_configured"}), 503
+
+    def call_news_groq(user_message):
+        payload = {
+            "model": news_ai.MODEL,
+            "temperature": 0.2,
+            "max_completion_tokens": 1500,
+            "reasoning_effort": "low",
+            "response_format": {"type": "json_schema", "json_schema": news_ai.RESPONSE_SCHEMA},
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        }
+        provider_request = urllib.request.Request(
+            "https://api.groq.com/openai/v1/chat/completions",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Authorization": "Bearer " + api_key,
+                     "Content-Type": "application/json",
+                     "User-Agent": "gaemiGTP-us-news-widget-test/1.0"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(provider_request, timeout=60) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            choices = result.get("choices") or []
+            choice = choices[0] if choices else {}
+            if choice.get("finish_reason") == "length":
+                raise RuntimeError("groq_truncated")
+            content = (choice.get("message") or {}).get("content")
+            if not isinstance(content, str) or not content.strip():
+                raise RuntimeError("groq_empty_response")
+            usage = result.get("usage") or {}
+            parsed = json.loads(content)
+            return parsed, usage.get("total_tokens")
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError("groq_http_" + str(exc.code)) from None
+
+    stock = {
+        "rank": 1, "symbol": symbol, "name": name,
+        "price": None, "change_pct": None, "industry": industry,
+    }
+    try:
+        # Same fetch -> title/date filter -> article body -> prompt -> validation
+        # functions used by the scheduled production US news widget.
+        status, result, articles, tokens, diagnostics = news_ai.analyze_stock(
+            stock, {}, groq=call_news_groq
+        )
+        if status != "ok":
+            return jsonify({
+                "ok": False, "status": status, "symbol": symbol, "name": name,
+                "diagnostics": diagnostics or {},
+                "message": ("조건에 맞는 최신 뉴스가 없습니다." if status == "no_news"
+                            else "AI 응답이 뉴스 위젯 검증 규칙을 통과하지 못했습니다."),
+            }), 200
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc)
+        day = now.astimezone(news_ai.NEW_YORK).date()
+        widget_payload = news_ai.stock_payload(
+            stock, day, now, status=status, result=result, articles=articles,
+            tokens=tokens, diagnostics=diagnostics,
+        )
+        return jsonify({
+            "ok": True, "test_only": True, "model": news_ai.MODEL,
+            "widget_payload": widget_payload,
+            "diagnostics": diagnostics or {},
+        })
+    except RuntimeError as exc:
+        code = str(exc)
+        if code == "groq_http_429":
+            error, status_code = "provider_rate_limit", 429
+        elif code == "groq_http_400":
+            error, status_code = "provider_bad_request", 400
+        elif code.startswith("groq_http_"):
+            error, status_code = "provider_http_error", 502
+        else:
+            error, status_code = "provider_error", 502
+        print("[worker-ai-lab] news_test_error", symbol, code[:48], flush=True)
+        return jsonify({"ok": False, "error": error}), status_code
+    except Exception as exc:
+        print("[worker-ai-lab] news_test_error", symbol, type(exc).__name__, flush=True)
+        return jsonify({"ok": False, "error": "news_pipeline_error"}), 502
 
 
 @worker_ai_lab_bp.post("/api/worker-ai-test/run")
