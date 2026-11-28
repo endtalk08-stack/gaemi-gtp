@@ -154,17 +154,17 @@
 
 .central-widget-card__kospi-change--up { color: #ff4d67 !important; }
 .central-widget-card__kospi-change--down { color: #3b82f6 !important; }
-.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-market {
+.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"], [data-central-widget-id="gold"], [data-central-widget-id="usdkrw"]) .central-widget-card__kospi-market {
   justify-content: space-between;
   gap: 4px;
 }
-.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-body {
+.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"], [data-central-widget-id="gold"], [data-central-widget-id="usdkrw"]) .central-widget-card__kospi-body {
   grid-template-columns: minmax(0, 1fr);
 }
-.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__sparkline {
+.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"], [data-central-widget-id="gold"], [data-central-widget-id="usdkrw"]) .central-widget-card__sparkline {
   display: none;
 }
-.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"]) .central-widget-card__kospi-change {
+.central-widget-card:is([data-central-widget-id="spy"], [data-central-widget-id="dia"], [data-central-widget-id="gold"], [data-central-widget-id="usdkrw"]) .central-widget-card__kospi-change {
   font-size: 20px;
   font-weight: 700;
   line-height: 24px;
