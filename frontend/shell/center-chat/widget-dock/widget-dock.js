@@ -329,6 +329,15 @@
       && Date.now() - quote.received_at_ms <= maxAge;
   }
 
+  function isVerifiedMarketCloseQuote(quote) {
+    return (quote?.source === 'kiwoom:regular-last-verified'
+        || quote?.source === 'kiwoom:regular-close')
+      && Number.isFinite(quote.price) && quote.price > 0
+      && Number.isFinite(quote.change_pct)
+      && Number.isFinite(quote.received_at_ms)
+      && quote.received_at_ms <= Date.now() + 5000;
+  }
+
   function updateQqqCard() {
     const card = cards.get('qqq');
     if (!card) return;
@@ -361,12 +370,13 @@
       && quote.stale === false && Number.isFinite(quote.received_at_ms)
       && Date.now() - quote.received_at_ms >= 0
       && Date.now() - quote.received_at_ms < 1800000;
+    const retainedClose = isVerifiedMarketCloseQuote(quote);
     const fresh = quote && (recentSnapshot || isQqqQuoteFresh(quote));
     const recentTick = quote && Number.isFinite(quote.price) && quote.price > 0
       && Number.isFinite(quote.received_at_ms) && quote.received_at_ms <= Date.now() + 5000
       && Date.now() - quote.received_at_ms <= 180000;
-    // Muted while waiting for a new tick, but do not blank a valid recent price.
-    const display = fresh || recentTick;
+    // Keep a verified regular-session close visible after live ticks stop.
+    const display = fresh || recentTick || retainedClose;
     const change = display && Number.isFinite(quote.change_pct) ? quote.change_pct : null;
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
     card.querySelector('[data-kospi-price]').textContent = display
@@ -396,8 +406,13 @@
         const quote = data.items.find(item => item.symbol === symbol);
         if (quote && Number.isFinite(quote.price) && quote.price > 0
             && Number.isFinite(quote.change_pct) && Number.isFinite(quote.received_at_ms)
-            && (!state.current || !isQqqQuoteFresh(state.current))) {
-          state.current = { ...quote, stale: false, source: 'kiwoom:rest' };
+            && (!state.current || (!isQqqQuoteFresh(state.current)
+              && !isVerifiedMarketCloseQuote(state.current)))) {
+          state.current = {
+            ...quote,
+            stale: quote.stale === true,
+            source: quote.source || 'kiwoom:rest'
+          };
           updateMarketEtfCard(symbol);
         }
       }
@@ -408,8 +423,10 @@
     const items = Array.isArray(event.detail?.items) ? event.detail.items : [];
     for (const [symbol, state] of Object.entries(marketEtfs)) {
       const quote = items.find(item => item.symbol === symbol);
-      if (quote && Number.isFinite(quote.price)
-          && quote.price > 0 && isQqqQuoteFresh(quote)) state.current = quote;
+      if (quote && Number.isFinite(quote.price) && quote.price > 0
+          && (isQqqQuoteFresh(quote) || isVerifiedMarketCloseQuote(quote))) {
+        state.current = quote;
+      }
       if (quote && Number.isFinite(quote.received_at_ms)
           && state.current && quote.received_at_ms > state.lastReceivedMs) {
         const { key } = easternTradingWindow(quote.received_at_ms);
