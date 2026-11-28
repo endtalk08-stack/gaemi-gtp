@@ -1,6 +1,5 @@
 {
-  "operation": "run",
-  "path": "ops/do-gateway/check_ai_env_presence.py",
-  "request_id": "aienvcheck20261128",
-  "timeout": 60
+  "operation": "logs",
+  "unit": "gaemigtp-us-news-ai.service",
+  "lines": 80
 }
