@@ -334,14 +334,14 @@ def validate(result, article_count, company_terms=()):
     return problems
 
 
-def call_groq(user_message, *, api_key=None, opener=urllib.request.urlopen, sleeper=time.sleep):
+def call_groq(user_message, *, api_key=None, opener=urllib.request.urlopen, sleeper=time.sleep, system_prompt=None):
     api_key = api_key or os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("groq_key_missing")
     payload = {
         "model": MODEL, "temperature": 0.2, "max_completion_tokens": 1500, "reasoning_effort": "low",
         "response_format": {"type": "json_schema", "json_schema": RESPONSE_SCHEMA},
-        "messages": [{"role": "system", "content": SYSTEM_PROMPT},
+        "messages": [{"role": "system", "content": system_prompt if isinstance(system_prompt, str) else SYSTEM_PROMPT},
                      {"role": "user", "content": user_message}],
     }
     request = urllib.request.Request(
