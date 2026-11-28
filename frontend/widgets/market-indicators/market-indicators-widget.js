@@ -5,7 +5,6 @@
   const POLL_MS = 5000;
   const IDS = ['dollar-index', 'wti'];
   const SYMBOLS = { 'dollar-index': 'DXY', wti: 'USOIL' };
-  const LABELS = { 'dollar-index': '달러 인덱스', wti: 'WTI 원유' };
   const state = {
     'dollar-index': { points: [], record: null, historyLoaded: false },
     wti: { points: [], record: null, historyLoaded: false }
@@ -65,8 +64,7 @@
       change.classList.toggle('central-widget-card__kospi-change--up', record?.fresh && pct > 0);
       change.classList.toggle('central-widget-card__kospi-change--down', record?.fresh && pct < 0);
     }
-    if (source) source.textContent = record?.fresh ? 'BiQuote · 실시간' :
-      record ? (record.marketState === 'closed' ? '시장 종료 · 마지막 시세' : '시세 확인 필요') : '데이터 연결 중';
+    if (source) source.textContent = record?.fresh ? 'BiQuote · 실시간' : '';
     chart?.classList.toggle('central-widget-card__sparkline--up', record?.fresh && record.changePct > 0);
     chart?.classList.toggle('central-widget-card__sparkline--down', record?.fresh && record.changePct < 0);
     draw(card, state[id].points);
