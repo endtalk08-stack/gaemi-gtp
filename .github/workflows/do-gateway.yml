@@ -133,6 +133,8 @@ jobs:
           INSTALL_KEYS: ${{ steps.request.outputs.install_keys }}
           DEEPL_API_KEY: ${{ steps.request.outputs.install_keys == '1' && secrets.DEEPL_API_KEY || '' }}
           GOOGLE_TRANSLATE_API_KEY: ${{ steps.request.outputs.install_keys == '1' && secrets.GOOGLE_TRANSLATE_API_KEY || '' }}
+          KIS_APP_KEY: ${{ steps.request.outputs.install_keys == '1' && secrets.KIS_APP_KEY || '' }}
+          KIS_APP_SECRET: ${{ steps.request.outputs.install_keys == '1' && secrets.KIS_APP_SECRET || '' }}
         run: |
           set -euo pipefail
           SSH_OPTS=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=12)

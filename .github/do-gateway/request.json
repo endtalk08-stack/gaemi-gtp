@@ -1,1 +1,3 @@
-{"operation":"run","path":"ops/do-gateway/check_kis_night_futures_20261128.py","request_id":"kis-night-check-20261128","timeout":60}
+{
+  "operation": "status"
+}
