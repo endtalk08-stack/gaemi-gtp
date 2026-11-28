@@ -249,7 +249,7 @@ test('left sidebar keeps all market tabs and restores moved widgets after refres
   assert.equal(marketSidebar.includes('시장 시세'), false);
   assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
   assert.match(html, /market-sidebar\.js\?v=20261128-kis-night-futures-v1/);
-  assert.match(html, /widget-dock\.js\?v=20261128-kis-night-futures-v1/);
+  assert.match(html, /widget-dock\.js\?v=20261128-kis-night-close-v2/);
   secondDom.window.close();
 });
 
@@ -291,5 +291,33 @@ test('KIS night futures widget displays the live quote and connection state from
     detail: { connected: false, status: 'credentials_missing' }
   }));
   assert.equal(card.querySelector('[data-night-futures-status]').textContent, 'API 키 미설정');
+  dom.window.close();
+});
+
+test('KIS night futures widget keeps the closing price outside trading hours (never a dash)', () => {
+  const dom = new JSDOM(
+    '<main id="mainContent"><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section></main>',
+    { url: 'https://example.test', runScripts: 'outside-only' }
+  );
+  const w = dom.window;
+  w.setInterval = () => 0;
+  w.fetch = async () => ({ ok: false });
+  w.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
+  w.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
+  const dock = w.GaemiGTPWidgetDock;
+  dock.initialize();
+  dock.add('night-futures');
+  const card = w.document.querySelector('[data-central-widget-id="night-futures"]');
+  w.dispatchEvent(new w.CustomEvent('gaemi:night-futures-quote', {
+    detail: { price: 760.05, change_pct: 0.38, received_at_ms: Date.now() - 600000,
+      connected: true, status: 'closed', source: 'kis:rest-night' }
+  }));
+  assert.equal(card.querySelector('[data-night-futures-price]').textContent, '760.05');
+  assert.equal(card.querySelector('[data-night-futures-change]').textContent, '+0.38%');
+  assert.equal(card.querySelector('[data-night-futures-status]').textContent, '마감');
+  assert.ok(card.querySelector('[data-night-futures-change]').classList.contains('central-widget-card__kospi-change--up'));
+  // A dropped connection afterwards keeps the price on screen.
+  w.dispatchEvent(new w.CustomEvent('gaemi:night-futures-quote', { detail: { connected: false, status: 'disconnected' } }));
+  assert.equal(card.querySelector('[data-night-futures-price]').textContent, '760.05');
   dom.window.close();
 });

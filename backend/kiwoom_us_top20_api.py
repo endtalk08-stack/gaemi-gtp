@@ -561,7 +561,7 @@ _MARKET_WIDGET_REST_MAX_AGE_MS = 30 * 60 * 1000
 _QQQ_WS_CLIENTS = threading.BoundedSemaphore(48)
 _NIGHT_FUTURES_LOCK = threading.Lock()
 _NIGHT_FUTURES_STATE = {
-    "connected": False, "status": "waiting", "symbol": "101W9000",
+    "connected": False, "status": "waiting", "symbol": "",
     "price": None, "change_pct": None, "received_at_ms": 0,
 }
 
