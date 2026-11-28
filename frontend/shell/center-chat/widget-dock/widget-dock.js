@@ -230,6 +230,7 @@
   const marketEtfs = Object.fromEntries(['SPY', 'DIA'].map(symbol => [symbol, {
     points: [], lastReceivedMs: 0, sessionKey: '', current: null
   }]));
+  const nightFutures = { points: [], lastReceivedMs: 0, current: null };
   let marketEtfSnapshotAt = 0;
   const MAX_QQQ_POINTS = 120;
   const QQQ_REASON_REFRESH_MS = 300000;
@@ -391,6 +392,66 @@
     drawQqqChart(card, state.points);
   }
 
+  function updateNightFuturesCard() {
+    const card = cards.get('night-futures');
+    if (!card) return;
+    const quote = nightFutures.current;
+    const valid = Number.isFinite(quote?.price) && quote.price > 0;
+    const receivedAt = Number(quote?.received_at_ms);
+    const fresh = valid && quote.connected !== false && Number.isFinite(receivedAt)
+      && receivedAt <= Date.now() + 5000 && Date.now() - receivedAt <= 30000;
+    const priceNode = card.querySelector('[data-night-futures-price]');
+    const changeNode = card.querySelector('[data-night-futures-change]');
+    const statusNode = card.querySelector('[data-night-futures-status]');
+    const chart = card.querySelector('.central-widget-card__sparkline');
+    if (priceNode) priceNode.textContent = valid
+      ? quote.price.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+    const change = Number.isFinite(quote?.change_pct) ? quote.change_pct : null;
+    if (changeNode) {
+      changeNode.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+      changeNode.classList.toggle('central-widget-card__kospi-change--up', fresh && change > 0);
+      changeNode.classList.toggle('central-widget-card__kospi-change--down', fresh && change < 0);
+    }
+    card.classList.toggle('central-widget-card--qqq-muted', !fresh);
+    chart?.classList.toggle('central-widget-card__sparkline--up', fresh && change > 0);
+    chart?.classList.toggle('central-widget-card__sparkline--down', fresh && change < 0);
+    if (statusNode) {
+      statusNode.textContent = !quote ? '연결 대기'
+        : quote.connected === false ? '연결 끊김' : fresh ? '실시간' : '수신 지연';
+      statusNode.dataset.state = !quote ? 'waiting'
+        : quote.connected === false ? 'disconnected' : fresh ? 'live' : 'stale';
+    }
+    drawQqqChart(card, nightFutures.points);
+  }
+
+  function onNightFuturesQuote(event) {
+    const payload = event.detail?.quote || event.detail || {};
+    const price = Number(payload.price ?? payload.last_price);
+    const changeRaw = payload.change_pct ?? payload.change_percent;
+    const changePct = changeRaw == null || changeRaw === '' ? NaN : Number(changeRaw);
+    const receivedAtRaw = payload.received_at_ms ?? payload.timestamp;
+    const receivedAt = typeof receivedAtRaw === 'string' && !/^\d+(\.\d+)?$/.test(receivedAtRaw)
+      ? Date.parse(receivedAtRaw) : Number(receivedAtRaw);
+    if (Number.isFinite(price) && price > 0) {
+      const timestamp = Number.isFinite(receivedAt) && receivedAt > 0
+        ? (receivedAt < 1e12 ? receivedAt * 1000 : receivedAt) : Date.now();
+      nightFutures.current = {
+        ...payload, price,
+        change_pct: Number.isFinite(changePct) ? changePct : null,
+        received_at_ms: timestamp,
+        connected: payload.connected !== false
+      };
+      if (timestamp > nightFutures.lastReceivedMs) {
+        nightFutures.points.push({ price, receivedAt: timestamp });
+        if (nightFutures.points.length > MAX_QQQ_POINTS) nightFutures.points.shift();
+        nightFutures.lastReceivedMs = timestamp;
+      }
+    } else if (payload.connected === false) {
+      nightFutures.current = { ...(nightFutures.current || {}), connected: false };
+    }
+    updateNightFuturesCard();
+  }
+
   async function refreshMarketEtfSnapshot() {
     if (document.hidden || !Object.keys(marketEtfs).some(symbol => activeIds.includes(symbol.toLowerCase()))
         || Date.now() - marketEtfSnapshotAt < 120000) return;
@@ -510,18 +571,19 @@
           <div class="central-widget-card__news-caption-title" data-news-caption-title>${escapeHtml(captionHeadline)}</div>
         </article>`;
       }
-      if (id === 'qqq' || id === 'spy' || id === 'dia' || id === 'gold' || id === 'usdkrw') {
+      if (id === 'qqq' || id === 'spy' || id === 'dia' || id === 'gold' || id === 'usdkrw' || id === 'night-futures') {
+        const isNightFutures = id === 'night-futures';
         const isQuoteWidget = id === 'gold' || id === 'usdkrw';
         const isEtf = id !== 'qqq';
-        const symbol = id === 'gold' ? '금' : id === 'usdkrw' ? '달러/원' : id.toUpperCase();
-        const marketName = id === 'gold' ? '금 현물 · 원/g' : id === 'usdkrw' ? 'USD/KRW' : id === 'spy' ? 'S&P 500' : id === 'dia' ? '다우' : '나스닥';
+        const symbol = isNightFutures ? '코스피200' : id === 'gold' ? '금' : id === 'usdkrw' ? '달러/원' : id.toUpperCase();
+        const marketName = isNightFutures ? '야간선물' : id === 'gold' ? '금 현물 · 원/g' : id === 'usdkrw' ? 'USD/KRW' : id === 'spy' ? 'S&P 500' : id === 'dia' ? '다우' : '나스닥';
         return `
-        <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}" ${id === 'gold' || id === 'usdkrw' ? 'data-market-quote-widget="' + id + '"' : ''}>
+        <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}" ${isQuoteWidget ? 'data-market-quote-widget="' + id + '"' : ''} ${isNightFutures ? 'data-night-futures-widget="true"' : ''}>
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${symbol} 위젯 삭제" title="위젯 삭제">
             <i data-lucide="x" class="w-3 h-3"></i>
           </button>
-          <div class="central-widget-card__kospi-title"><span>${symbol}</span><span class="central-widget-card__kospi-market-name">${marketName}</span></div>
-          <div class="central-widget-card__kospi-body" aria-label="${symbol} ${id === 'gold' || id === 'usdkrw' ? '시세 흐름' : '키움 실시간 체결가 차트'}">
+          <div class="central-widget-card__kospi-title"><span>${symbol}</span><span class="central-widget-card__kospi-market-name">${marketName}</span>${isNightFutures ? '<span class="central-widget-card__night-status" data-night-futures-status data-state="waiting">연결 대기</span>' : ''}</div>
+          <div class="central-widget-card__kospi-body" aria-label="${symbol} 시세 흐름">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
               <defs>
                 <linearGradient id="${isEtf ? id : 'kospi'}SparklineGradient" x1="0" y1="0" x2="0" y2="1">
@@ -529,23 +591,14 @@
                   <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
                 </linearGradient>
               </defs>
-              <polygon data-kospi-sparkline-fill ${isQuoteWidget ? 'data-market-quote-fill' : ''} points=""></polygon>
-              <polyline data-kospi-sparkline ${isQuoteWidget ? 'data-market-quote-line' : ''} points=""></polyline>
+              <polygon data-kospi-sparkline-fill ${isQuoteWidget ? 'data-market-quote-fill' : ''} ${isNightFutures ? 'data-night-futures-fill' : ''} points=""></polygon>
+              <polyline data-kospi-sparkline ${isQuoteWidget ? 'data-market-quote-line' : ''} ${isNightFutures ? 'data-night-futures-line' : ''} points=""></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price ${isQuoteWidget ? 'data-market-quote-value' : ''}>—</strong><span class="central-widget-card__kospi-change" data-kospi-change ${isQuoteWidget ? 'data-market-quote-percent' : ''}>—</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price ${isQuoteWidget ? 'data-market-quote-value' : ''} ${isNightFutures ? 'data-night-futures-price' : ''}>—</strong><span class="central-widget-card__kospi-change" data-kospi-change ${isQuoteWidget ? 'data-market-quote-percent' : ''} ${isNightFutures ? 'data-night-futures-change' : ''}>—</span></div>
             </div>
           </div>
           ${isEtf ? '' : '<a class="central-widget-card__kospi-reason" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a>'}
-        </article>`;
-      }
-      if (id === 'night-futures') {
-        const title = '코스피200 야간선물';
-        const detail = '야간선물 원천 데이터 연결 후 시세·등락률·흐름을 표시합니다.';
-        return `<article class="central-widget-card central-widget-card--kospi" data-central-widget-id="${escapeHtml(id)}">
-          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${escapeHtml(title)} 위젯 삭제" title="위젯 삭제"><i data-lucide="x" class="w-3 h-3"></i></button>
-          <div class="central-widget-card__kospi-title">${escapeHtml(title)}</div>
-          <div class="central-widget-card__market-empty">${escapeHtml(detail)}</div>
         </article>`;
       }
       return `<article class="central-widget-card" data-central-widget-id="${escapeHtml(id)}">
@@ -584,6 +637,7 @@
     for (const symbol of Object.keys(marketEtfs)) {
       if (activeIds.includes(symbol.toLowerCase())) updateMarketEtfCard(symbol);
     }
+    if (activeIds.includes('night-futures')) updateNightFuturesCard();
 
   }
   function setChartSelection(symbol) {
@@ -865,6 +919,7 @@
     });
     window.addEventListener('gaemi:qqq-quote', onQqqQuote);
     window.addEventListener('gaemi:market-etf-quotes', onMarketEtfQuotes);
+    window.addEventListener('gaemi:night-futures-quote', onNightFuturesQuote);
     document.addEventListener('visibilitychange', refreshMarketEtfSnapshot);
     setInterval(refreshMarketEtfSnapshot, 120000);
     void refreshMarketEtfSnapshot();
@@ -877,7 +932,8 @@
     getActiveIds: () => [...activeIds],
     getPlacement: id => placements.get(id) || 'center',
     setNewsHeadline, isActive: id => activeIds.includes(id),
-    setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason
+    setChartSelection, renderInlineChart, isInlineChartActive, updateMarketQqqReason,
+    setNightFuturesQuote: quote => onNightFuturesQuote({ detail: quote })
   };
 }());
 
