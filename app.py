@@ -13,7 +13,7 @@ from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.news_result import get_shared_stock_news_result
 from backend.services.news_freshness import issue_mode_for_question, normalize_issue_mode
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
-from backend.services.us_market_close import read_brief as read_us_market_close_brief
+from backend.services.us_market_close_runtime import verified_indices as read_verified_us_indices
 
 from backend.services.engine import analyze_stock
 
@@ -56,30 +56,33 @@ def health():
 
 @app.get("/api/market/us-close")
 def market_us_close():
-    """Read the latest verified U.S. market-close brief prepared by the DO worker."""
+    """Return the latest verified Dow, Nasdaq and S&P regular-session closes."""
     try:
-        brief = read_us_market_close_brief()
+        indices = read_verified_us_indices()
+        session_date = indices[0]["session_date_et"]
+        lines = ["미국장 3대 지수 마감"]
+        lines.extend(
+            f'{item["name"]} {item["close"]:,.2f} ({item["change_pct"]:+.2f}%)'
+            for item in indices
+        )
+        response = jsonify({
+            "ok": True,
+            "available": True,
+            "session_date": session_date,
+            "content": "\\n\\n".join(lines),
+            "presentation": {
+                "session_date_et": session_date,
+                "market_indices": indices,
+                "issues": [],
+            },
+        })
+        response.headers["Cache-Control"] = "no-store"
+        return response
     except Exception as exc:
-        print(f"[API /api/market/us-close] read failed: {type(exc).__name__}", flush=True)
+        print(f"[API /api/market/us-close] index read failed: {type(exc).__name__}", flush=True)
         response = jsonify({"ok": False, "available": False, "error": "us_close_unavailable"})
         response.headers["Cache-Control"] = "no-store"
         return response, 503
-
-    if not brief:
-        response = jsonify({"ok": True, "available": False})
-        response.headers["Cache-Control"] = "no-store"
-        return response
-
-    response = jsonify({
-        "ok": True,
-        "available": True,
-        "session_date": brief["session_date"],
-        "content": brief["content"],
-        "presentation": brief["presentation"],
-        "published_at": brief["published_at"],
-    })
-    response.headers["Cache-Control"] = "no-store"
-    return response
 
 
 @app.post("/internal/market/us-price-push")
