@@ -1,118 +1,135 @@
-/* Five macro market indicator widgets. Data is relayed by the Pages Function. */
+/* Live DXY and WTI widgets using the same BiQuote quote feed as gold/USD-KRW. */
 (function () {
   'use strict';
-
-  const API = '/market/indicators';
-  const POLL_MS = 60000;
-  const IDS = ['us-2y', 'us-10y', 'dxy', 'vix', 'wti'];
-  const state = new Map();
-  let timer = null;
-  let busy = false;
-
-  function active() {
-    return IDS.filter(id => window.GaemiGTPWidgetDock?.isActive?.(id));
+  const API = 'https://biquote.io/api/';
+  const POLL_MS = 5000;
+  const IDS = ['dxy', 'wti'];
+  const SYMBOLS = { dxy: 'DXY', wti: 'USOIL' };
+  const LABELS = { dxy: '달러인덱스', wti: 'WTI 원유' };
+  const state = {
+    dxy: { points: [], record: null, historyLoaded: false },
+    wti: { points: [], record: null, historyLoaded: false }
+  };
+  let timer = null, busy = false;
+  const num = value => { const n = Number(value); return Number.isFinite(n) ? n : null; };
+  function timeMs(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value < 1e12 ? value * 1000 : value;
+    if (typeof value !== 'string') return 0;
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) return n < 1e12 ? n * 1000 : n;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
-
-  function number(value, digits = 2) {
-    return Number(value).toLocaleString('en-US', {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits
-    });
+  function fresh(tick) {
+    const age = num(tick?.quoteAgeSeconds);
+    const timestamp = timeMs(tick?.timestamp);
+    const elapsed = timestamp ? (Date.now() - timestamp) / 1000 : null;
+    return tick?.stale !== true && tick?.marketState !== 'closed'
+      && (age === null ? elapsed !== null && elapsed >= -5 && elapsed <= 90 : age >= 0 && age <= 90);
   }
-
-  function paint(item) {
-    const card = document.querySelector('[data-market-indicator-widget="' + item.id + '"]');
+  function addPoint(id, price, at) {
+    const points = state[id].points, time = timeMs(at) || Date.now();
+    if (points.length && time <= points[points.length - 1].time) return;
+    points.push({ value: price, time });
+    if (points.length > 120) points.shift();
+  }
+  function draw(card, points) {
+    const line = card.querySelector('[data-market-indicator-line]');
+    const fill = card.querySelector('[data-market-indicator-fill]');
+    if (!line || !fill) return;
+    if (points.length < 2) { line.setAttribute('points', ''); fill.setAttribute('points', ''); return; }
+    const values = points.map(p => p.value), low = Math.min(...values), high = Math.max(...values);
+    const span = high - low;
+    const coords = values.map((v, i) => {
+      const x = 1 + i / (values.length - 1) * 70;
+      const y = span === 0 ? 14 : 25 - (v - low) / span * 22;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    line.setAttribute('points', coords); fill.setAttribute('points', '1,27 ' + coords + ' 71,27');
+  }
+  function paint(id) {
+    const card = document.querySelector('[data-market-indicator-widget="' + id + '"]');
+    const record = state[id].record;
     if (!card) return;
     const price = card.querySelector('[data-market-indicator-value]');
     const change = card.querySelector('[data-market-indicator-change]');
     const source = card.querySelector('[data-market-indicator-source]');
     const chart = card.querySelector('.central-widget-card__sparkline');
-    const points = state.get(item.id)?.points || [];
-
-    card.classList.toggle('central-widget-card--qqq-muted', !item.ok || item.fresh === false);
-    if (price) {
-      if (!item.ok) price.textContent = '—';
-      else price.textContent = (item.id === 'wti' ? '$' : '') + number(item.value, item.id === 'us-2y' || item.id === 'us-10y' ? 3 : 2) +
-        (item.id === 'us-2y' || item.id === 'us-10y' ? '%' : '');
-    }
+    card.classList.toggle('central-widget-card--qqq-muted', !record?.fresh);
+    if (price) price.textContent = record
+      ? (id === 'wti' ? '$' : '') + record.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      : '—';
     if (change) {
-      if (!item.ok || item.fresh === false || !Number.isFinite(item.change)) {
-        change.textContent = '—';
-      } else if (item.change_unit === 'bp') {
-        change.textContent = (item.change > 0 ? '+' : '') + number(item.change, 1) + 'bp';
-      } else {
-        change.textContent = (item.change > 0 ? '+' : '') + number(item.change, 2) + '%';
-      }
-      change.classList.toggle('central-widget-card__kospi-change--up', item.ok && item.change > 0);
-      change.classList.toggle('central-widget-card__kospi-change--down', item.ok && item.change < 0);
+      const pct = record?.changePct;
+      change.textContent = record?.fresh && Number.isFinite(pct) ? (pct > 0 ? '+' : '') + pct.toFixed(2) + '%' : '—';
+      change.classList.toggle('central-widget-card__kospi-change--up', record?.fresh && pct > 0);
+      change.classList.toggle('central-widget-card__kospi-change--down', record?.fresh && pct < 0);
     }
-    if (source) {
-      const asOf = item.as_of ? ' · ' + String(item.as_of).replace('T', ' ').replace('Z', ' UTC') : '';
-      source.textContent = item.source + ' · ' + item.delay + asOf;
-    }
-    chart?.classList.toggle('central-widget-card__sparkline--up', item.ok && item.change > 0);
-    chart?.classList.toggle('central-widget-card__sparkline--down', item.ok && item.change < 0);
-    draw(chart, points);
+    if (source) source.textContent = record?.fresh ? 'BiQuote · 실시간' :
+      record ? (record.marketState === 'closed' ? '시장 종료 · 마지막 시세' : '시세 확인 필요') : '데이터 연결 중';
+    chart?.classList.toggle('central-widget-card__sparkline--up', record?.fresh && record.changePct > 0);
+    chart?.classList.toggle('central-widget-card__sparkline--down', record?.fresh && record.changePct < 0);
+    draw(card, state[id].points);
   }
-
-  function draw(chart, points) {
-    const line = chart?.querySelector?.('[data-market-indicator-line]');
-    const fill = chart?.querySelector?.('[data-market-indicator-fill]');
-    if (!line || !fill) return;
-    if (points.length < 2) {
-      line.setAttribute('points', '');
-      fill.setAttribute('points', '');
-      return;
-    }
-    const low = Math.min(...points), high = Math.max(...points), span = high - low;
-    const coords = points.map((value, index) => {
-      const x = 1 + index / (points.length - 1) * 70;
-      const y = span === 0 ? 14 : 25 - (value - low) / span * 22;
-      return x.toFixed(1) + ',' + y.toFixed(1);
-    }).join(' ');
-    line.setAttribute('points', coords);
-    fill.setAttribute('points', '1,27 ' + coords + ' 71,27');
+  async function json(url) {
+    const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(7000) });
+    if (!response.ok) throw new Error('Quote HTTP ' + response.status);
+    return response.json();
   }
-
+  async function history(id) {
+    if (state[id].historyLoaded) return;
+    state[id].historyLoaded = true;
+    try {
+      const data = await json(API + SYMBOLS[id] + '/ohlc?interval=1m&limit=60');
+      const bars = Array.isArray(data?.bars) ? data.bars.slice().reverse() : [];
+      const points = bars.map(bar => {
+        const close = num(bar?.close), time = timeMs(bar?.openTime);
+        return close !== null && close > 0 && time ? { value: close, time } : null;
+      }).filter(Boolean);
+      const latest = state[id].points.at(-1);
+      state[id].points = points;
+      if (latest && latest.time > (points.at(-1)?.time || 0)) state[id].points.push(latest);
+      state[id].points = state[id].points.slice(-120);
+    } catch (_) { state[id].historyLoaded = false; }
+  }
   async function refresh() {
-    if (busy || document.hidden || !active().length) return;
+    if (busy || document.hidden) return;
+    const active = IDS.filter(id => window.GaemiGTPWidgetDock?.isActive?.(id));
+    if (!active.length) return;
     busy = true;
     try {
-      const response = await fetch(API, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
-      if (!response.ok) throw new Error('Indicators HTTP ' + response.status);
-      const payload = await response.json();
-      if (!payload?.ok || !Array.isArray(payload.items)) throw new Error('Invalid indicators response');
-      payload.items.forEach(item => {
-        const previous = state.get(item.id);
-        const points = previous?.points || [];
-        if (item.ok && Number.isFinite(item.value)) {
-          if (!points.length || points[points.length - 1] !== item.value) points.push(item.value);
-          while (points.length > 60) points.shift();
+      const query = active.map(id => 'symbols=' + encodeURIComponent(SYMBOLS[id])).join('&');
+      const ticks = await json(API + 'latest?' + query);
+      for (const id of active) {
+        const tick = ticks?.[SYMBOLS[id]], price = num(tick?.mid);
+        if (!tick || price === null || price <= 0) {
+          if (state[id].record) state[id].record.fresh = false;
+          paint(id);
+          continue;
         }
-        state.set(item.id, { points, item });
-        paint(item);
-      });
+        const record = {
+          price, changePct: num(tick.dayDiffPercent),
+          fresh: fresh(tick), marketState: tick.marketState || null
+        };
+        state[id].record = record;
+        addPoint(id, price, tick.timestamp);
+        paint(id);
+      }
+      await Promise.all(active.map(history));
+      active.forEach(paint);
     } catch (_) {
-      IDS.forEach(id => {
-        const previous = state.get(id);
-        if (previous?.item) paint({ ...previous.item, ok: false });
+      active.forEach(id => {
+        if (state[id].record) state[id].record.fresh = false;
+        paint(id);
       });
-    } finally {
-      busy = false;
-    }
+    } finally { busy = false; }
   }
-
   function mount() {
-    if (!active().length) return;
+    if (!IDS.some(id => window.GaemiGTPWidgetDock?.isActive?.(id))) return;
     void refresh();
-    if (!timer) timer = window.setInterval(refresh, POLL_MS);
+    if (!timer) timer = window.setInterval(() => { void refresh(); }, POLL_MS);
   }
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) void refresh();
-  });
-  window.addEventListener('gaemi:widget-change', () => {
-    if (active().length) mount();
-  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) void refresh(); });
+  window.addEventListener('gaemi:widget-change', mount);
   window.GaemiGTPMarketIndicators = { mount, refresh };
 }());
