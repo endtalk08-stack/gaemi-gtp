@@ -1,1 +1,3 @@
-{"operation":"run","path":"ops/do-gateway/publish_fj_latest10_20261128.py","request_id":"publish-fj-latest10-20261128","timeout":90}
+{
+  "operation": "status"
+}
