@@ -24,7 +24,7 @@
     button:disabled { opacity: .5; cursor: wait; }
     .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .row input { flex: 1 1 280px; }
-    .tabs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 16px; }
+    .tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-top: 16px; }
     .tab { text-align: left; border: 1px solid #40526b; background: #1b2938; padding: 14px; border-radius: 11px; line-height: 1.5; }
     .tab.active { outline: 2px solid #81b4ff; background: #233c5b; }
     .tab small { display: block; color: #bbc9d8; font-weight: 400; font-size: .79rem; }
@@ -59,21 +59,36 @@
         미국 마감시황
         <small>GPT-OSS 120B · 자유 형식 · 최대 1,500 응답 토큰</small>
       </button>
+      <button class="tab" id="tabNews" type="button" aria-pressed="false">
+        미국 뉴스 위젯
+        <small>실제 뉴스 수집·본문·운영 프롬프트·검증 연결</small>
+      </button>
     </div>
     <p id="modelInfo">AI 이슈 분석 · openai/gpt-oss-20b</p>
   </section>
   <section class="panel">
-    <label for="systemPrompt">시스템 프롬프트 (선택 사항 · 편집 가능)</label>
+    <label for="systemPrompt">시스템 프롬프트 (실제 운영 프롬프트 · 편집 가능)</label>
     <textarea id="systemPrompt" maxlength="6000" placeholder="인증하면 DigitalOcean에서 사용 중인 기본 프롬프트가 나타납니다."></textarea>
-    <label for="userInput">AI에 보낼 메시지 (질문·뉴스 자료 등 자유 입력)</label>
-    <textarea id="userInput" maxlength="15000" placeholder="예: 엔비디아 왜 올랐어? / 뉴스 원문 / 원하는 분석 요청"></textarea>
-    <label for="formatMode">AI 응답 형식</label>
-    <select id="formatMode">
-      <option value="auto">자동 · 프롬프트가 JSON을 요청할 때만 JSON 강제</option>
-      <option value="text">자유 응답 · 일반 텍스트 (추천)</option>
-      <option value="json">JSON 강제 · 프롬프트에도 JSON 출력 지시 필요</option>
-    </select>
-    <p class="muted">시스템 프롬프트는 비워도 됩니다. 질문만으로 자유롭게 테스트할 수 있지만 실제 뉴스·시세가 자동 첨부되지는 않습니다. 근거 있는 분석을 원한다면 관련 자료를 함께 입력하세요. 모델별 작성 내용과 출력 형식은 각각 유지되며, 분석 버튼을 누를 때마다 Groq 토큰이 소모됩니다.</p>
+    <div id="genericInput">
+      <label for="userInput">AI에 보낼 메시지 (질문·뉴스 자료 등 자유 입력)</label>
+      <textarea id="userInput" maxlength="15000" placeholder="예: 엔비디아 왜 올랐어? / 뉴스 원문 / 원하는 분석 요청"></textarea>
+      <label for="formatMode">AI 응답 형식</label>
+      <select id="formatMode">
+        <option value="auto">자동 · 프롬프트가 JSON을 요청할 때만 JSON 강제</option>
+        <option value="text">자유 응답 · 일반 텍스트 (추천)</option>
+        <option value="json">JSON 강제 · 프롬프트에도 JSON 출력 지시 필요</option>
+      </select>
+      <p class="muted">일반 테스트는 입력한 메시지 그대로 모델에 전달합니다. 분석 버튼을 누를 때마다 Groq 토큰이 소모됩니다.</p>
+    </div>
+    <div id="newsInput" hidden>
+      <label for="stockSymbol">미국 종목 티커</label>
+      <input id="stockSymbol" maxlength="15" value="NVDA" placeholder="예: NVDA">
+      <label for="stockName">종목명</label>
+      <input id="stockName" maxlength="80" value="엔비디아" placeholder="예: 엔비디아">
+      <label for="stockIndustry">업종 (선택)</label>
+      <input id="stockIndustry" maxlength="100" placeholder="예: 반도체">
+      <p class="muted">실제 미국 뉴스 수집 → 종목명 기사 필터 → 기사 본문 추출 → 운영 뉴스 위젯 프롬프트로 AI 분석 → 운영과 같은 결과 검증을 실행합니다. 테스트 결과는 화면에만 표시하고 R2·운영 TOP20·일일 실행 상태에는 저장하지 않습니다.</p>
+    </div>
     <div class="row">
       <button type="button" id="send" disabled>AI 분석 실행</button>
       <button type="button" id="reset" class="secondary" disabled>기본 프롬프트·예시 복원</button>
@@ -96,70 +111,121 @@
 <script>
 (() => {
   const $ = id => document.getElementById(id);
-  const state = { current: 'issue', verified: false, config: null, inputs: {
-    issue: {system_prompt:'',user_input:'',output_format:'auto'},
-    close: {system_prompt:'',user_input:'',output_format:'auto'}
-  }, results: {issue:null,close:null}, runs: {issue:0,close:0} };
+  const state = {
+    current: 'issue', verified: false, config: null,
+    inputs: {
+      issue: {system_prompt:'',user_input:'',output_format:'auto'},
+      close: {system_prompt:'',user_input:'',output_format:'auto'},
+      news: {system_prompt:'',symbol:'NVDA',name:'엔비디아',industry:''}
+    },
+    results: {issue:null,close:null,news:null},
+    runs: {issue:0,close:0,news:0}
+  };
   const messages = {
-    unauthorized_or_disabled:'인증 실패: 기존 AI_TEST_TOKEN, AI_TEST_ENABLED, Render Groq 설정을 확인하세요.',
-    invalid_prompt:'AI에 보낼 메시지를 입력해 주세요. 시스템 프롬프트는 비워도 됩니다.',
+    unauthorized_or_disabled:'인증 실패: 기존 AI_TEST_TOKEN 또는 AI_TEST_ENABLED 설정을 확인하세요.',
+    invalid_prompt:'AI에 보낼 메시지를 입력해 주세요.',
     invalid_output_format:'응답 형식을 다시 선택해 주세요.',
-    json_instruction_required:'JSON 강제 모드에서는 시스템 프롬프트 또는 메시지에 JSON 출력 지시가 필요합니다.',
-    provider_bad_request:'Groq가 요청을 잘못된 형식으로 판단했습니다. 자유 응답을 선택하거나 프롬프트를 확인해 주세요.',
+    json_instruction_required:'JSON 강제 모드에서는 프롬프트에 JSON 출력 지시가 필요합니다.',
+    provider_bad_request:'Groq가 요청을 잘못된 형식으로 판단했습니다.',
     invalid_model:'선택한 모델을 확인해 주세요.',
-    provider_not_configured:'Render에 GROQ_API_KEY가 설정되지 않았습니다.',
+    invalid_news_test_input:'티커와 종목명을 확인해 주세요.',
+    provider_not_configured:'서버에 GROQ_API_KEY가 설정되지 않았습니다.',
     provider_rate_limit:'Groq 속도·사용량 제한에 도달했습니다.',
     provider_http_error:'Groq 제공사 요청이 실패했습니다.',
     provider_error:'Groq 서버 연결 또는 응답 처리가 실패했습니다.',
     empty_provider_response:'모델이 비어 있는 답변을 반환했습니다.',
+    news_pipeline_error:'뉴스 수집 또는 본문 분석 과정에서 오류가 발생했습니다.',
     request_too_large:'입력 크기가 너무 큽니다.'
   };
   const fmt = n => Number.isInteger(n) && n >= 0 ? n.toLocaleString('ko-KR') : '미확인';
   const notice = msg => $('notice').textContent = msg;
-  const save = () => { if (state.verified) state.inputs[state.current] = {
-    system_prompt: $('systemPrompt').value, user_input: $('userInput').value,
-    output_format: $('formatMode').value
-  }; };
+  const save = () => {
+    if (!state.verified) return;
+    if (state.current === 'news') {
+      state.inputs.news = {
+        system_prompt:$('systemPrompt').value,
+        symbol:$('stockSymbol').value.trim().toUpperCase(),
+        name:$('stockName').value.trim(),
+        industry:$('stockIndustry').value.trim()
+      };
+    } else {
+      state.inputs[state.current] = {
+        system_prompt:$('systemPrompt').value,
+        user_input:$('userInput').value,
+        output_format:$('formatMode').value
+      };
+    }
+  };
   function renderResult() {
     const data = state.results[state.current];
-    $('answer').textContent = data ? data.answer : '이 모델은 아직 호출하지 않았습니다.';
-    const usage = data?.usage || {};
-    $('inTokens').textContent = data ? fmt(usage.prompt_tokens) : '—';
-    $('outTokens').textContent = data ? fmt(usage.completion_tokens) : '—';
+    let answer = '이 모델은 아직 호출하지 않았습니다.';
+    let usage = data?.usage || {};
+    if (data?.widget_payload) {
+      const p = data.widget_payload;
+      answer = [
+        p.headline || '',
+        '',
+        '키워드: ' + (p.keywords || []).join(' · '),
+        '',
+        ...(p.lines || []),
+        '',
+        '근거 기사:',
+        ...((p.sources || []).map((s,i) => (i+1)+'. '+s.title+' ('+(s.source || '출처 미상')+')'))
+      ].join('\n');
+      usage = {total_tokens:p.tokens};
+    } else if (data?.status) {
+      const d = data.diagnostics || {};
+      answer = (data.message || '분석 결과가 없습니다.')
+        + '\n\n수집 기사: ' + fmt(d.fetched)
+        + ' · 조건 통과: ' + fmt(d.articles)
+        + ' · 본문 확보: ' + fmt(d.bodies);
+    } else if (data?.answer) {
+      answer = data.answer;
+    }
+    $('answer').textContent = answer;
+    $('inTokens').textContent = state.current === 'news' ? '미확인' : data ? fmt(usage.prompt_tokens) : '—';
+    $('outTokens').textContent = state.current === 'news' ? '미확인' : data ? fmt(usage.completion_tokens) : '—';
     $('allTokens').textContent = data ? fmt(usage.total_tokens) : '—';
     $('reasoning').textContent = data && Number.isInteger(usage.reasoning_tokens)
       ? '출력 토큰 중 추론 토큰: ' + fmt(usage.reasoning_tokens) : '';
-    $('finish').textContent = data ? '모델: ' + data.model
-      + ' · 응답 형식: ' + (data.output_format === 'json' ? 'JSON' : '자유 응답')
-      + ' · 응답 종료 상태: ' + (data.finish_reason || '미확인')
+    const model = data?.model || state.config?.[state.current]?.model || '';
+    const status = data?.status ? ' · 결과: '+data.status : '';
+    $('finish').textContent = data ? '모델: ' + model + status
       + ' · ' + data.run_no + '회차 · 완료 ' + data.completed_at : '';
   }
   function switchModel(variant) {
     if (state.current === variant) return;
     save();
     state.current = variant;
-    $('tabIssue').classList.toggle('active', variant === 'issue');
-    $('tabClose').classList.toggle('active', variant === 'close');
-    $('tabIssue').setAttribute('aria-pressed', String(variant === 'issue'));
-    $('tabClose').setAttribute('aria-pressed', String(variant === 'close'));
+    for (const v of ['issue','close','news']) {
+      const id = 'tab'+(v==='issue'?'Issue':v==='close'?'Close':'News');
+      $(id).classList.toggle('active',variant===v);
+      $(id).setAttribute('aria-pressed',String(variant===v));
+    }
+    $('genericInput').hidden = variant === 'news';
+    $('newsInput').hidden = variant !== 'news';
     if (state.verified) {
-      $('systemPrompt').value = state.inputs[variant].system_prompt;
-      $('userInput').value = state.inputs[variant].user_input;
-      $('formatMode').value = state.inputs[variant].output_format;
+      const values=state.inputs[variant];
+      $('systemPrompt').value=values.system_prompt;
+      if (variant === 'news') {
+        $('stockSymbol').value=values.symbol;
+        $('stockName').value=values.name;
+        $('stockIndustry').value=values.industry;
+      } else {
+        $('userInput').value=values.user_input;
+        $('formatMode').value=values.output_format;
+      }
     }
     const config = state.config?.[variant];
     $('modelInfo').textContent = config
-      ? config.label + ' · ' + config.model + ' · 응답 토큰 상한 ' + fmt(config.max_completion_tokens)
-      : variant === 'issue' ? 'AI 이슈 분석 · openai/gpt-oss-20b'
-        : '미국 마감시황 · openai/gpt-oss-120b';
+      ? config.label + ' · ' + config.model + (config.max_completion_tokens ? ' · 응답 토큰 상한 ' + fmt(config.max_completion_tokens) : '')
+      : '';
     $('send').textContent = state.runs[variant] ? '다시 AI 분석 실행' : 'AI 분석 실행';
     renderResult();
   }
   async function api(path,payload) {
     const response = await fetch(path,{
-      method: payload ? 'POST':'GET',
-      cache:'no-store',
-      credentials:'same-origin',
+      method: payload ? 'POST':'GET', cache:'no-store', credentials:'same-origin',
       headers:{'Authorization':'Bearer '+$('token').value,
         ...(payload?{'Content-Type':'application/json'}:{})},
       body:payload?JSON.stringify(payload):undefined
@@ -168,16 +234,12 @@
     try { data = await response.json(); }
     catch (_) { throw new Error('서버 응답을 읽을 수 없습니다 (HTTP '+response.status+').'); }
     if (!response.ok || !data.ok)
-      throw new Error((messages[data.error]||'요청 실패')
-        +' (HTTP '+response.status
-        +(data.provider_status?', Groq '+data.provider_status:'')
-        +(data.provider_error_code?', 코드 '+data.provider_error_code:'')
-        +(data.provider_error_type?', 유형 '+data.provider_error_type:'')+').');
+      throw new Error((messages[data.error]||'요청 실패')+' (HTTP '+response.status+').');
     return data;
   }
   $('auth').addEventListener('click', async () => {
     if (state.verified) {
-      notice('이미 인증됐습니다. 아래의 AI 분석 실행 버튼을 누르면 매번 새 요청이 전송됩니다.');
+      notice('이미 인증됐습니다. 종목을 입력하고 AI 분석 실행을 누르세요.');
       return;
     }
     $('auth').disabled=true; notice('인증 중...');
@@ -189,63 +251,72 @@
         user_input:data.models[v].example_input,
         output_format:'auto'
       };
+      state.inputs.news={
+        system_prompt:data.models.news.system_prompt,
+        symbol:'NVDA',name:'엔비디아',industry:'반도체'
+      };
       $('systemPrompt').value=state.inputs[state.current].system_prompt;
       $('userInput').value=state.inputs[state.current].user_input;
       $('formatMode').value=state.inputs[state.current].output_format;
       $('send').disabled=false; $('reset').disabled=false;
-      $('modelInfo').textContent=data.models[state.current].label+' · '
-        +data.models[state.current].model+' · 응답 토큰 상한 '
-        +fmt(data.models[state.current].max_completion_tokens);
-      notice('인증 성공. 아래 AI 분석 실행 버튼을 누를 때마다 새 요청을 보냅니다.');
+      $('modelInfo').textContent=data.models[state.current].label+' · '+data.models[state.current].model;
+      notice('인증 성공. 미국 뉴스 위젯 탭에서 종목을 바꿔 실제 뉴스 분석을 테스트할 수 있습니다.');
     } catch(e) { state.verified=false; notice(e.message); }
     finally { $('auth').disabled=false; }
   });
   $('tabIssue').addEventListener('click',()=>switchModel('issue'));
   $('tabClose').addEventListener('click',()=>switchModel('close'));
+  $('tabNews').addEventListener('click',()=>switchModel('news'));
   $('reset').addEventListener('click',()=>{
     if(!state.verified)return;
     const d=state.config[state.current];
     $('systemPrompt').value=d.system_prompt;
-    $('userInput').value=d.example_input;
-    $('formatMode').value='auto';
-    save(); notice('선택한 모델의 운영 기본 프롬프트와 입력 예시를 복원했습니다.');
+    if(state.current==='news') {
+      $('stockSymbol').value='NVDA'; $('stockName').value='엔비디아'; $('stockIndustry').value='반도체';
+      state.inputs.news={system_prompt:d.system_prompt,symbol:'NVDA',name:'엔비디아',industry:'반도체'};
+    } else {
+      $('userInput').value=d.example_input; $('formatMode').value='auto'; save();
+    }
+    notice('선택한 테스트의 기본 프롬프트와 입력값을 복원했습니다.');
   });
   $('send').addEventListener('click',async ()=>{
     if(!state.verified)return;
     save();
-    const values=state.inputs[state.current];
-    if(!values.user_input.trim()) {
-      notice('AI에 보낼 메시지를 입력해 주세요. 시스템 프롬프트는 비워도 됩니다.'); return;
+    const current=state.current, values=state.inputs[current];
+    if(current==='news' && (!values.symbol || !values.name || !values.system_prompt.trim())) {
+      notice('티커, 종목명, 시스템 프롬프트를 확인해 주세요.'); return;
     }
-    const current=state.current;
-    // Button click itself is the explicit request: no confirmation dialog that
-    // can silently prevent a second call. Always POST again, even for identical input.
+    if(current!=='news' && !values.user_input.trim()) {
+      notice('AI에 보낼 메시지를 입력해 주세요.'); return;
+    }
     $('send').disabled=true; $('reset').disabled=true;
     $('send').textContent='새 분석 요청 중...';
     notice(state.config[current].label+' 새 분석 요청 중... (Groq 토큰 사용)');
     state.results[current]=null;
-    $('answer').textContent='새 AI 응답을 받고 있습니다...';
+    $('answer').textContent='실제 뉴스 수집과 AI 분석을 진행하고 있습니다...';
     $('finish').textContent='';
-    $('inTokens').textContent='—';
-    $('outTokens').textContent='—';
-    $('allTokens').textContent='—';
+    $('inTokens').textContent='—'; $('outTokens').textContent='—'; $('allTokens').textContent='—';
     $('reasoning').textContent='';
     try {
-      const result=await api('/api/worker-ai-test/run',{
-        variant:current,system_prompt:values.system_prompt,user_input:values.user_input,
-        output_format:values.output_format
-      });
+      const result = current==='news'
+        ? await api('/api/worker-ai-test/news/run',{
+            symbol:values.symbol,name:values.name,industry:values.industry,system_prompt:values.system_prompt
+          })
+        : await api('/api/worker-ai-test/run',{
+            variant:current,system_prompt:values.system_prompt,user_input:values.user_input,
+            output_format:values.output_format
+          });
       state.runs[current]+=1;
       state.results[current]={...result,run_no:state.runs[current],
+        model:result.model || state.config[current].model,
         completed_at:new Date().toLocaleString('ko-KR',{timeZone:'Asia/Seoul',hour12:false})};
       if(state.current===current)renderResult();
-      notice('새 분석 완료: '+state.config[current].label+' · '+state.runs[current]+'회차');
+      notice('분석 완료: '+state.config[current].label+' · '+state.runs[current]+'회차');
     }catch(e){
-      notice('재실행 실패: '+e.message);
+      notice('분석 실패: '+e.message);
       if(state.current===current) $('answer').textContent='이번 AI 요청 실패: '+e.message;
     }finally {
-      $('send').disabled=false;
-      $('reset').disabled=false;
+      $('send').disabled=false; $('reset').disabled=false;
       $('send').textContent=state.runs[state.current] ? '다시 AI 분석 실행' : 'AI 분석 실행';
     }
   });
