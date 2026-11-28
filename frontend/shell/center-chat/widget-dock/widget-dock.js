@@ -493,16 +493,18 @@
           <div class="central-widget-card__news-caption-title" data-news-caption-title>${escapeHtml(captionHeadline)}</div>
         </article>`;
       }
-      if (id === 'qqq' || id === 'spy' || id === 'dia') {
+      if (id === 'qqq' || id === 'spy' || id === 'dia' || id === 'gold' || id === 'usdkrw') {
+        const isQuoteWidget = id === 'gold' || id === 'usdkrw';
         const isEtf = id !== 'qqq';
-        const symbol = id.toUpperCase();
+        const symbol = id === 'gold' ? '금' : id === 'usdkrw' ? '달러/원' : id.toUpperCase();
+        const marketName = id === 'gold' ? '금 현물 · 원/g' : id === 'usdkrw' ? 'USD/KRW' : id === 'spy' ? 'S&P 500' : id === 'dia' ? '다우' : '나스닥';
         return `
-        <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}">
+        <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}" ${id === 'gold' || id === 'usdkrw' ? 'data-market-quote-widget="' + id + '"' : ''}>
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${symbol} 위젯 삭제" title="위젯 삭제">
             <i data-lucide="x" class="w-3 h-3"></i>
           </button>
-          <div class="central-widget-card__kospi-title"><span>${symbol}</span><span class="central-widget-card__kospi-market-name">${id === 'spy' ? 'S&P 500' : id === 'dia' ? '다우' : '나스닥'}</span></div>
-          <div class="central-widget-card__kospi-body" aria-label="${symbol} 키움 실시간 체결가 차트">
+          <div class="central-widget-card__kospi-title"><span>${symbol}</span><span class="central-widget-card__kospi-market-name">${marketName}</span></div>
+          <div class="central-widget-card__kospi-body" aria-label="${symbol} ${id === 'gold' || id === 'usdkrw' ? '시세 흐름' : '키움 실시간 체결가 차트'}">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
               <defs>
                 <linearGradient id="${isEtf ? id : 'kospi'}SparklineGradient" x1="0" y1="0" x2="0" y2="1">
@@ -510,11 +512,11 @@
                   <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
                 </linearGradient>
               </defs>
-              <polygon data-kospi-sparkline-fill points=""></polygon>
-              <polyline data-kospi-sparkline points=""></polyline>
+              <polygon data-kospi-sparkline-fill ${isQuoteWidget ? 'data-market-quote-fill' : ''} points=""></polygon>
+              <polyline data-kospi-sparkline ${isQuoteWidget ? 'data-market-quote-line' : ''} points=""></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price>—</strong><span class="central-widget-card__kospi-change" data-kospi-change>—</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price ${isQuoteWidget ? 'data-market-quote-value' : ''}>—</strong><span class="central-widget-card__kospi-change" data-kospi-change ${isQuoteWidget ? 'data-market-quote-percent' : ''}>—</span></div>
             </div>
           </div>
           ${isEtf ? '' : '<a class="central-widget-card__kospi-reason" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a>'}
@@ -559,6 +561,9 @@
     window.dispatchEvent(new CustomEvent('gaemi:widget-change'));
     if (window.lucide) window.lucide.createIcons();
     if (activeIds.includes('qqq')) updateQqqCard();
+    if (activeIds.includes('gold') || activeIds.includes('usdkrw')) {
+      window.GaemiGTPMarketQuoteWidgets?.mount?.();
+    }
     for (const symbol of Object.keys(marketEtfs)) {
       if (activeIds.includes(symbol.toLowerCase())) updateMarketEtfCard(symbol);
     }
