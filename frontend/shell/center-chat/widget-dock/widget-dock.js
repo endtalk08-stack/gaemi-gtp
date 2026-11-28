@@ -512,13 +512,13 @@
       }
       if (['dollar-index', 'wti'].includes(id)) {
         const meta = catalog()[id];
-        const marketNames = { 'dollar-index': '달러 인덱스', wti: 'WTI 원유' };
+        const marketNames = { 'dollar-index': '달러 인덱스', wti: '유가' };
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}" data-market-indicator-widget="${escapeHtml(id)}">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${escapeHtml(meta.title)} 위젯 삭제" title="위젯 삭제">
             <i data-lucide="x" class="w-3 h-3"></i>
           </button>
-          <div class="central-widget-card__kospi-title"><span>${marketNames[id]}</span><span class="central-widget-card__kospi-market-name" data-market-indicator-source>데이터 연결 중</span></div>
+          <div class="central-widget-card__kospi-title"><span>${marketNames[id]}</span><span class="central-widget-card__kospi-market-name" data-market-indicator-source></span></div>
           <div class="central-widget-card__kospi-body" aria-label="${escapeHtml(meta.title)} 시세 흐름">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
               <defs>
