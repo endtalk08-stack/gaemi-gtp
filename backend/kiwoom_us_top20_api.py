@@ -584,8 +584,12 @@ def _night_futures_snapshot():
     with _NIGHT_FUTURES_LOCK:
         quote = dict(_NIGHT_FUTURES_STATE)
     received = quote.get("received_at_ms")
-    quote["stale"] = not quote.get("connected") or not isinstance(received, int) \\
-        or received <= 0 or int(time.time() * 1000) - received > 30000
+    quote["stale"] = (
+        not quote.get("connected")
+        or not isinstance(received, int)
+        or received <= 0
+        or int(time.time() * 1000) - received > 30000
+    )
     return quote
 _QQQ_STALE_MS = 25000
 _QQQ_REST_STALE_MS = 65000
