@@ -1,13 +1,13 @@
-/* Live DXY and WTI widgets using the same BiQuote quote feed as gold/USD-KRW. */
+/* Live Dollar Index and WTI widgets using the same BiQuote quote feed as gold/USD-KRW. */
 (function () {
   'use strict';
   const API = 'https://biquote.io/api/';
   const POLL_MS = 5000;
-  const IDS = ['dxy', 'wti'];
-  const SYMBOLS = { dxy: 'DXY', wti: 'USOIL' };
-  const LABELS = { dxy: '달러인덱스', wti: 'WTI 원유' };
+  const IDS = ['dollar-index', 'wti'];
+  const SYMBOLS = { 'dollar-index': 'DXY', wti: 'USOIL' };
+  const LABELS = { 'dollar-index': '달러인덱스', wti: 'WTI 원유' };
   const state = {
-    dxy: { points: [], record: null, historyLoaded: false },
+    'dollar-index': { points: [], record: null, historyLoaded: false },
     wti: { points: [], record: null, historyLoaded: false }
   };
   let timer = null, busy = false;
