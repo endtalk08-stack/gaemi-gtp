@@ -1,152 +1,59 @@
-"""Read-only one-shot audit of Alpaca US market-close articles (19 Oct 2026).
-Two bounded GETs total, output only title, body length, limited excerpt. No DB/UI.
+"""Read-only probe of the Alpaca (Benzinga) news feed: recent headlines and volume.
+GET only, prints headline / source / time / symbols. No storage, no publishing.
+Run by the gateway operation alpaca-news-verify with /etc/gaemigtp/alpaca.env.
 """
-import html
-from html.parser import HTMLParser
+import datetime as dt
 import json
 import os
-import re
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 
-class Strip(HTMLParser):
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.parts = []
-        self.skip = 0
-    def handle_starttag(self, tag, attrs):
-        if tag in ("script", "style"): self.skip += 1
-        elif tag in ("p", "div", "li", "br"): self.parts.append(" ")
-    def handle_endtag(self, tag):
-        if tag in ("script", "style") and self.skip: self.skip -= 1
-        elif tag in ("p", "div", "li"): self.parts.append(" ")
-    def handle_data(self, data):
-        if not self.skip: self.parts.append(data)
 
-def clean(value):
-    p = Strip()
-    p.feed(str(value or "")[:95000])
-    return re.sub(r"\s+", " ", html.unescape("".join(p.parts))).strip()
-
-def search(key, secret, symbols, label):
-    params = {
-        "start": "2026-10-19T20:00:00Z",
-        "end": "2026-10-19T23:00:00Z",
-        "sort": "desc", "limit": 50,
-        "include_content": "true",
-        "exclude_contentless": "true",
-    }
-    if symbols:
-        params["symbols"] = symbols
-    url = "https://data.alpaca.markets/v1beta1/news?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, method="GET", headers={
-        "APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret,
-        "Accept": "application/json",
-        "User-Agent": "gaemi-us-close-isolated-news-audit/1.0",
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read(900000))
-    except urllib.error.HTTPError as exc:
-        print("US_CLOSE_NEWS_ERROR=" + label + "_http_" + str(exc.code), flush=True)
-        return None
-    except (TimeoutError, urllib.error.URLError, OSError, ValueError):
-        print("US_CLOSE_NEWS_ERROR=" + label + "_transport", flush=True)
-        return None
-    if not isinstance(data, dict) or not isinstance(data.get("news"), list):
-        print("US_CLOSE_NEWS_ERROR=" + label + "_schema", flush=True)
-        return None
-    items = data["news"][:50]
-    print("US_CLOSE_NEWS_GROUP=" + json.dumps({
-        "group": label, "total": len(items),
-        "full_body_500plus": sum(len(clean(a.get("content"))) >= 500 for a in items if isinstance(a, dict)),
-        "more_pages": bool(data.get("next_page_token")),
-    }), flush=True)
-    return items
+def fetch(key, secret, start, end, token=None):
+    params = {"start": start, "end": end, "sort": "desc", "limit": 50, "include_content": "false"}
+    if token:
+        params["page_token"] = token
+    req = urllib.request.Request("https://data.alpaca.markets/v1beta1/news?" + urllib.parse.urlencode(params),
+                                 headers={"APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret,
+                                          "Accept": "application/json", "User-Agent": "gaemiGTP-news-probe/1.0"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read(2000000))
 
 
 def main():
-    import datetime as dt
-    import html as htmlmod
-    start="2026-10-20T01:05:24Z"
-    end="2026-10-21T01:05:24Z"
-    key=os.getenv("APCA_API_KEY_ID","").strip()
-    secret=os.getenv("APCA_API_SECRET_KEY","").strip()
+    key = os.getenv("APCA_API_KEY_ID", "").strip()
+    secret = os.getenv("APCA_API_SECRET_KEY", "").strip()
     if not key or not secret:
-        print("ALPACA_CONTENT_ERROR=credentials_missing",flush=True)
+        print("ALPACA_NEWS_ERROR=credentials_missing", flush=True)
         return 2
-    print("ALPACA_CONTENT_WINDOW="+start+".."+end,flush=True)
-    all_ok=True
-    for sym in ("NVDA","SPCX","AAPL"):
-        page_token=None
-        seen=set()
-        pages=0
-        body_present=0
-        substantive=0
-        missing=0
-        body_lengths=[]
-        sources={}
-        issue=None
-        for _ in range(40):
-            params={"symbols":sym,"start":start,"end":end,
-                    "sort":"asc","limit":50,"include_content":"true"}
-            if page_token:
-                params["page_token"]=page_token
-            request=urllib.request.Request(
-                "https://data.alpaca.markets/v1beta1/news?"+urllib.parse.urlencode(params),
-                headers={"APCA-API-KEY-ID":key,"APCA-API-SECRET-KEY":secret,
-                         "Accept":"application/json"}, method="GET")
-            try:
-                with urllib.request.urlopen(request,timeout=16) as resp:
-                    data=json.load(resp)
-            except urllib.error.HTTPError as exc:
-                issue="http_"+str(exc.code)
+    now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+    start = (now - dt.timedelta(hours=24)).isoformat().replace("+00:00", "Z")
+    end = now.isoformat().replace("+00:00", "Z")
+    items, token = [], None
+    try:
+        for _ in range(6):
+            data = fetch(key, secret, start, end, token)
+            items += data.get("news") or []
+            token = data.get("next_page_token")
+            if not token:
                 break
-            except (TimeoutError,urllib.error.URLError,OSError,ValueError):
-                issue="transport_or_json"
-                break
-            if not isinstance(data,dict) or not isinstance(data.get("news"),list):
-                issue="invalid_schema"
-                break
-            pages+=1
-            for item in data["news"]:
-                if not isinstance(item,dict):
-                    continue
-                identity=str(item.get("id") or item.get("url") or item.get("headline") or "")
-                if not identity or identity in seen:
-                    continue
-                seen.add(identity)
-                source=str(item.get("source") or "unknown")
-                sources[source]=sources.get(source,0)+1
-                raw=item.get("content") or ""
-                cleaned=clean(raw)
-                size=len(cleaned)
-                body_lengths.append(size)
-                if size:
-                    body_present+=1
-                else:
-                    missing+=1
-                if size>=500:
-                    substantive+=1
-            page_token=data.get("next_page_token")
-            if not page_token:
-                break
-        if page_token and issue is None:
-            issue="page_limit_reached"
-        if issue: all_ok=False
-        summary={
-            "symbol":sym,"count":len(seen),"pages":pages,
-            "body_nonempty":body_present,"body_500plus":substantive,
-            "body_missing":missing,"min_body_chars":min(body_lengths or [0]),
-            "max_body_chars":max(body_lengths or [0]),
-            "sources":sources,
-            "complete":issue is None,"error":issue,
-        }
-        print("ALPACA_CONTENT_RESULT="+json.dumps(summary,ensure_ascii=False,sort_keys=True),flush=True)
-    print("ALPACA_CONTENT_AUDIT_DONE",flush=True)
-    return 0 if all_ok else 5
+    except urllib.error.HTTPError as exc:
+        print("ALPACA_NEWS_ERROR=http_%d" % exc.code, flush=True)
+        return 1
+    except Exception as exc:
+        print("ALPACA_NEWS_ERROR=" + type(exc).__name__, flush=True)
+        return 1
+    sources = {}
+    for a in items:
+        sources[a.get("source") or "?"] = sources.get(a.get("source") or "?", 0) + 1
+    print("ALPACA_NEWS_24H count=%d%s sources=%s" % (len(items), "+" if token else "", json.dumps(sources)), flush=True)
+    for a in items[:40]:
+        print("NEWS %s | %s | %s | %s" % (str(a.get("created_at"))[:16], a.get("author") or a.get("source"),
+              ",".join((a.get("symbols") or [])[:4]), str(a.get("headline"))[:160]), flush=True)
+    return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
