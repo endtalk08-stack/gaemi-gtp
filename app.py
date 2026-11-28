@@ -13,6 +13,7 @@ from backend.services.market_issue_headlines import get_market_issue_headlines
 from backend.services.news_result import get_shared_stock_news_result
 from backend.services.news_freshness import issue_mode_for_question, normalize_issue_mode
 from backend.services.us_price_push import accept_signed_quotes, read_memory_quotes
+from backend.services.us_market_close import read_brief as read_us_market_close_brief
 
 from backend.services.engine import analyze_stock
 
@@ -41,6 +42,7 @@ def ai_test_page():
 def worker_ai_test_page():
     return send_from_directory(FRONTEND_DIR, "worker-ai-test.html")
 
+
 @app.get("/health")
 def health():
     """Read-only process health: counts only; never reveal live prices or identities."""
@@ -51,10 +53,33 @@ def health():
                                      "cached_symbols": len(quotes),
                                      "receiving": bool(fresh)}})
 
+
 @app.get("/api/market/us-close")
 def market_us_close():
-    """Legacy close-summary endpoint kept inert after retiring Neon storage."""
-    return jsonify({"ok": True, "available": False})
+    """Read the latest verified U.S. market-close brief prepared by the DO worker."""
+    try:
+        brief = read_us_market_close_brief()
+    except Exception as exc:
+        print(f"[API /api/market/us-close] read failed: {type(exc).__name__}", flush=True)
+        response = jsonify({"ok": False, "available": False, "error": "us_close_unavailable"})
+        response.headers["Cache-Control"] = "no-store"
+        return response, 503
+
+    if not brief:
+        response = jsonify({"ok": True, "available": False})
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    response = jsonify({
+        "ok": True,
+        "available": True,
+        "session_date": brief["session_date"],
+        "content": brief["content"],
+        "presentation": brief["presentation"],
+        "published_at": brief["published_at"],
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.post("/internal/market/us-price-push")
@@ -158,6 +183,7 @@ def analyze():
     except Exception as exc:
         print(f"[API /analyze] unexpected error: {type(exc).__name__}: {exc}")
         return jsonify({"sections": [], "disclosures": [], "us_filings": [], "ok": False, "error": "analysis_failed"}), 200
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "10000"))
