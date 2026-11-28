@@ -1,5 +1,6 @@
 {
-  "operation": "status"
+  "operation": "run",
+  "path": "ops/do-gateway/check_ai_env_presence.py",
+  "request_id": "aienvcheck20261128",
+  "timeout": 60
 }
-
-
