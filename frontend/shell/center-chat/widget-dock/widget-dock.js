@@ -427,9 +427,10 @@
   function onNightFuturesQuote(event) {
     const payload = event.detail?.quote || event.detail || {};
     const price = Number(payload.price ?? payload.last_price);
-    const changePct = Number(payload.change_pct ?? payload.change_percent);
+    const changeRaw = payload.change_pct ?? payload.change_percent;
+    const changePct = changeRaw == null || changeRaw === '' ? NaN : Number(changeRaw);
     const receivedAtRaw = payload.received_at_ms ?? payload.timestamp;
-    const receivedAt = typeof receivedAtRaw === 'string' && !/^\\d+(\\.\\d+)?$/.test(receivedAtRaw)
+    const receivedAt = typeof receivedAtRaw === 'string' && !/^\d+(\.\d+)?$/.test(receivedAtRaw)
       ? Date.parse(receivedAtRaw) : Number(receivedAtRaw);
     if (Number.isFinite(price) && price > 0) {
       const timestamp = Number.isFinite(receivedAt) && receivedAt > 0
