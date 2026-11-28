@@ -70,12 +70,15 @@ async function fetchVix() {
   const quote = payload?.data;
   const value = Number(quote?.current_price);
   if (!quote || !Number.isFinite(value) || value <= 0) throw new Error('No CBOE VIX quote');
+  const asOf = payload.timestamp || quote.last_trade_time || null;
+  const quoteTime = asOf ? Date.parse(asOf) : NaN;
+  const ageMs = Number.isFinite(quoteTime) ? Date.now() - quoteTime : Infinity;
   return {
     value,
     change: Number.isFinite(Number(quote.price_change_percent)) ? Number(quote.price_change_percent) : null,
     changeUnit: '%',
-    asOf: payload.timestamp || quote.last_trade_time || null,
-    fresh: true,
+    asOf,
+    fresh: ageMs >= -300000 && ageMs <= 86400000,
     points: []
   };
 }
