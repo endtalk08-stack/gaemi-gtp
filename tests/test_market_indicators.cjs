@@ -38,8 +38,7 @@ test('five macro indicators are registered and use the existing movable widget c
   }
 
   w.eval(readFileSync('frontend/widgets/market-indicators/market-indicators-widget.js', 'utf8'));
-  w.GaemiGTPMarketIndicators.mount();
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await w.GaemiGTPMarketIndicators.refresh();
 
   for (const item of expected) {
     const card = w.document.querySelector('[data-market-indicator-widget="' + item.id + '"]');
