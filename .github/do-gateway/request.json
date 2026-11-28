@@ -1,3 +1,1 @@
-{
-  "operation": "status"
-}
+{"operation":"deploy","path":"ops/systemd/gaemigtp-us-move-news.timer","target":"ops/systemd/gaemigtp-us-move-news.timer"}
