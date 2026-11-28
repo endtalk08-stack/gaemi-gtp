@@ -82,6 +82,25 @@ async function main() {
   assert.equal(table.children[1].children.length, 3);
   assert.equal(table.children[1].children[0].children[0].textContent, '다우존스');
 
+  // Index-only responses must still render the verified close table when no
+  // editorial body or AI-generated summary is available.
+  const indexOnly = { ...valid, issues: [] };
+  assert.ok(api.normalize(indexOnly));
+  assert.ok(api.plainText(indexOnly).includes('다우존스 51,966.03 (-0.07%)'));
+  const indexOnlyRoot = makeNode('div');
+  let indexOnlyTyped = 0;
+  assert.equal(await api.render(indexOnlyRoot, indexOnly, {
+    isActive: () => true,
+    typeText: async (element, value) => {
+      element.textContent = value;
+      indexOnlyTyped += 1;
+      return true;
+    }
+  }), true);
+  assert.equal(indexOnlyTyped, 1);
+  assert.equal(indexOnlyRoot.children[0].children[0].textContent, '미국장 3대 지수 마감');
+  assert.equal(indexOnlyRoot.children[0].children[1].children[0].tagName, 'table');
+
   // New model-2 output keeps the same storage shape but receives model-3-style
   // paragraph / heading / list spacing, and exactly three code-generated tags.
   const free = {
