@@ -510,9 +510,9 @@
           <div class="central-widget-card__news-caption-title" data-news-caption-title>${escapeHtml(captionHeadline)}</div>
         </article>`;
       }
-      if (['us-2y', 'us-10y', 'dxy', 'vix', 'wti'].includes(id)) {
+      if (['dxy', 'wti'].includes(id)) {
         const meta = catalog()[id];
-        const symbols = { 'us-2y': 'US 2Y', 'us-10y': 'US 10Y', dxy: 'DXY', vix: 'VIX', wti: 'WTI' };
+        const symbols = { dxy: 'DXY', wti: 'WTI' };
         return `
         <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}" data-market-indicator-widget="${escapeHtml(id)}">
           <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${escapeHtml(meta.title)} 위젯 삭제" title="위젯 삭제">
