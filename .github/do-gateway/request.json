@@ -1,1 +1,1 @@
-{"operation":"run","path":"ops/do-gateway/check_close_values_20261128.py","request_id":"close-values-20261128","timeout":60}
+{"operation":"run","path":"ops/do-gateway/probe_kis_futures_close_20261128.py","request_id":"kis-close-probe-20261128","timeout":90}
