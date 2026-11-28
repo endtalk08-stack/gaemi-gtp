@@ -433,8 +433,9 @@
     const changeRaw = payload.change_pct ?? payload.change_percent;
     const changePct = changeRaw == null || changeRaw === '' ? NaN : Number(changeRaw);
     const receivedAtRaw = payload.received_at_ms ?? payload.timestamp;
-    const receivedAt = typeof receivedAtRaw === 'string' && !/^\\d+(\\.\\d+)?$/.test(receivedAtRaw)
-      ? Date.parse(receivedAtRaw) : Number(receivedAtRaw);
+    const receivedAt = typeof receivedAtRaw === 'string'
+      ? (Number.isFinite(Number(receivedAtRaw)) ? Number(receivedAtRaw) : Date.parse(receivedAtRaw))
+      : Number(receivedAtRaw);
     if (Number.isFinite(price) && price > 0) {
       const timestamp = Number.isFinite(receivedAt) && receivedAt > 0
         ? (receivedAt < 1e12 ? receivedAt * 1000 : receivedAt) : Date.now();
