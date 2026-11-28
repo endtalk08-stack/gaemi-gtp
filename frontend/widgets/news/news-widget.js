@@ -103,6 +103,46 @@
     const rows=allRows().slice(0,visible);
     return rows.map(item=>item.ai ? renderAiListItem(item) : renderListItem(item)).join('');
   }
+  let aiTestToken = '';
+  let aiTestStocks = [];
+  let aiTestPrompt = '';
+  let aiTestSelectedSymbol = '';
+  let aiTestResult = null;
+  let aiTestStatus = '관리자 인증 후 현재 거래대금 TOP20을 불러오세요.';
+  const aiTestBackend = window.location.hostname === 'gaemigtp-main.pages.dev' || window.location.hostname.endsWith('github.io') ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
+  function aiTestPanel() {
+    const options = aiTestStocks.map(row => '<option value="' + escape(row.symbol) + '"' + (row.symbol === aiTestSelectedSymbol ? ' selected' : '') + '>' + escape(row.rank + '위 · ' + row.name + ' (' + row.symbol + ')') + '</option>').join('');
+    let preview = '';
+    if (aiTestResult) {
+      preview = '<div class="gnw-ai-test-preview"><div class="gnw-ai-test-preview-label">뉴스 위젯 표시 미리보기 · 운영 R2 미저장</div><strong>' + escape(aiTestResult.headline || ((aiTestResult.stock || {}).name || '') + ' 분석 결과') + '</strong>' + (aiTestResult.lines || []).slice(0,2).map(line => '<p>' + escape(line) + '</p>').join('') + ((aiTestResult.keywords || []).length ? '<div class="gnw-ai-test-tags">' + aiTestResult.keywords.map(k => '<span>#' + escape(k) + '</span>').join('') + '</div>' : '') + '<small>' + escape((aiTestResult.stock || {}).symbol || '') + ' · 기사 ' + escape(aiTestResult.article_count) + '건 · 토큰 ' + escape(aiTestResult.tokens == null ? '미확인' : aiTestResult.tokens) + ' · ' + escape(aiTestResult.model || '') + '</small></div>';
+    }
+    return '<section class="gnw-ai-test" aria-label="미국 거래대금 TOP20 AI 분석 테스트"><div class="gnw-ai-test-head"><strong>TOP20 AI 분석 테스트</strong><span>선택한 1종목만 실제 뉴스·본문·AI 분석</span></div>' + '<label class="gnw-ai-test-label">관리자 테스트 비밀번호</label><input type="password" data-gnw-ai-test-token autocomplete="off" placeholder="기존 AI_TEST_TOKEN" aria-label="관리자 테스트 비밀번호" value="' + escape(aiTestToken) + '">' + '<div class="gnw-ai-test-actions"><button type="button" data-gnw-ai-test-load>현재 거래대금 TOP20 불러오기</button><span data-gnw-ai-test-status role="status">' + escape(aiTestStatus) + '</span></div>' + '<label class="gnw-ai-test-label">테스트 종목</label><select data-gnw-ai-test-symbol aria-label="테스트 종목">' + (options || '<option value="">먼저 TOP20을 불러오세요</option>') + '</select>' + '<label class="gnw-ai-test-label">시스템 프롬프트 · 수정 가능</label><textarea data-gnw-ai-test-prompt rows="5" maxlength="6000" placeholder="TOP20을 불러오면 기존 운영 프롬프트가 표시됩니다.">' + escape(aiTestPrompt) + '</textarea>' + '<div class="gnw-ai-test-actions"><button type="button" data-gnw-ai-test-run' + (aiTestStocks.length ? '' : ' disabled') + '>선택 종목 AI 분석 테스트 실행</button></div>' + preview + '</section>';
+  }
+  async function aiTestRequest(path, payload) {
+    const response = await fetch(aiTestBackend + path, { method: payload ? 'POST' : 'GET', cache: 'no-store', headers: { 'Authorization': 'Bearer ' + aiTestToken, ...(payload ? {'Content-Type':'application/json'} : {}) }, body: payload ? JSON.stringify(payload) : undefined });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) throw new Error(data.error || ('HTTP ' + response.status));
+    return data;
+  }
+  async function loadAiTestTop20(host) {
+    aiTestToken = host.querySelector('[data-gnw-ai-test-token]')?.value.trim() || '';
+    if (!aiTestToken) { aiTestStatus = '관리자 테스트 비밀번호를 입력해 주세요.'; render(); return; }
+    aiTestStatus = '현재 TOP20과 기존 프롬프트를 불러오는 중...'; render();
+    try { const pair = await Promise.all([aiTestRequest('/api/us-news-ai-test/top20'), aiTestRequest('/api/us-news-ai-test/config')]); aiTestStocks = pair[0].items || []; aiTestPrompt = pair[1].system_prompt || ''; aiTestSelectedSymbol = aiTestStocks[0]?.symbol || ''; aiTestResult = null; aiTestStatus = aiTestStocks.length + '개 종목을 불러왔어요. 테스트할 종목을 선택하세요.'; }
+    catch (error) { aiTestStatus = error.message === 'unauthorized_or_disabled' ? '인증 실패: AI_TEST_TOKEN과 AI_TEST_ENABLED를 확인해 주세요.' : '불러오기 실패: ' + error.message; }
+    render();
+  }
+  async function runAiTest(host) {
+    aiTestToken = host.querySelector('[data-gnw-ai-test-token]')?.value.trim() || aiTestToken;
+    aiTestSelectedSymbol = host.querySelector('[data-gnw-ai-test-symbol]')?.value || '';
+    aiTestPrompt = host.querySelector('[data-gnw-ai-test-prompt]')?.value || '';
+    if (!aiTestToken || !aiTestSelectedSymbol) { aiTestStatus = '비밀번호와 테스트 종목을 확인해 주세요.'; render(); return; }
+    const button = host.querySelector('[data-gnw-ai-test-run]'); if (button) button.disabled = true;
+    aiTestStatus = '실제 뉴스 수집과 AI 분석 실행 중입니다. 선택한 종목 1개만 분석합니다...'; aiTestResult = null; render();
+    try { aiTestResult = await aiTestRequest('/api/us-news-ai-test/run', {symbol: aiTestSelectedSymbol, system_prompt: aiTestPrompt}); aiTestStatus = aiTestResult.status === 'ok' ? '분석 완료 · 미리보기 결과는 운영 뉴스와 R2에 저장되지 않았어요.' : '분석 결과: ' + aiTestResult.status + ' · 최신 뉴스가 없으면 AI 호출은 생략됩니다.'; }
+    catch (error) { aiTestStatus = '테스트 실패: ' + error.message; }
+    render();
+  }
   function renderAiList() {
     const rows=aiItems();
     if (rows.length) return rows.map(renderAiListItem).join('');
@@ -137,6 +177,7 @@
       <div class="gnw-categories" role="group" aria-label="뉴스 분류">
         ${CATEGORIES.map(c=>`<button type="button" data-gnw-cat="${escape(c)}" class="gnw-category${c===selected?' is-active':''}" aria-pressed="${c===selected?'true':'false'}">${escape(c)}</button>`).join('')}
       </div>
+      ${selected===AI_CATEGORY ? aiTestPanel() : ''}
       <div class="gnw-list">
         ${selected===AI_CATEGORY ? renderAiList() : selected==='전체' ? renderAllList() : rows.map(renderListItem).join('')}
       </div>
@@ -216,6 +257,8 @@
       favorite.setAttribute('aria-pressed',active?'true':'false');
       return;
     }
+    if(e.target.closest('[data-gnw-ai-test-load]')) { loadAiTestTop20(host); return; }
+    if(e.target.closest('[data-gnw-ai-test-run]')) { runAiTest(host); return; }
     const cat=e.target.closest('[data-gnw-cat]');
     if(cat){
       selected=cat.dataset.gnwCat;visible=Number.MAX_SAFE_INTEGER;render();
