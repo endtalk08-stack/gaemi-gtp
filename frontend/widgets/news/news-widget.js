@@ -39,9 +39,8 @@
   }
   // Real articles: setItems() news plus translated US macro headlines (연준·백악관·경제지표).
   const macro = () => window.GaemiGTPUsMacroNews;
-  const moves = () => window.GaemiGTPUsMoveNews;
   function currentItems() {
-    const extra = [...(macro()?.newsItems() || []), ...(moves()?.newsItems() || [])];
+    const extra = macro()?.newsItems() || [];
     return extra.length ? [...items, ...extra].sort((a,b)=>(Date.parse(b.published_at)||0)-(Date.parse(a.published_at)||0)) : items;
   }
   function matches(item) {
@@ -114,7 +113,7 @@
   }
   let aiRefreshTimer = null;
   function refreshAi() {
-    const loads=[ai()?.load?.(), macro()?.load?.(), moves()?.load?.()].filter(Boolean);
+    const loads=[ai()?.load?.(), macro()?.load?.()].filter(Boolean);
     Promise.all(loads).then(() => {
       // Do not remount the list while the user is typing a search.
       if (detailId===null && widget() && !document.activeElement?.matches?.('[data-gnw-search]')) render();

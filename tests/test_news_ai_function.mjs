@@ -70,17 +70,3 @@ test('macro headlines: keeps translated https items only and fixes the category'
   assert.equal(body.items[1].summary, '');
   assert.deepEqual(await (await macro({ env: env(null) })).json(), { ok: true, generated_at: null, items: [] });
 });
-
-test('price-move headlines: well-formed items only', async () => {
-  const { onRequestGet: moves } = await import('../functions/news/moves/us.js');
-  const env = data => ({ DATA_R2: { get: async key => {
-    assert.equal(key, 'news/stocks/us/MOVEFEED.json');
-    return data === null ? null : { json: async () => data };
-  } } });
-  const body = await (await moves({ env: env({ ok: true, items: [
-    { id: '20261125-NVDA-up5', symbol: 'NVDA', title: '엔비디아가 상승률 5%를 돌파했어요', published_at: '2026-11-25T15:05:00Z' },
-    { id: 'x', symbol: 'bad', title: '잘못', published_at: '2026-11-25T15:05:00Z' },
-  ] }) })).json();
-  assert.deepEqual(body.items.map(i => i.id), ['move:20261125-NVDA-up5']);
-  assert.deepEqual(await (await moves({ env: env(null) })).json(), { ok: true, items: [] });
-});

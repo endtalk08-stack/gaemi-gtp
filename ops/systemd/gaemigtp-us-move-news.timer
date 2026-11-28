@@ -1,11 +1,11 @@
 [Unit]
-Description=Check US TOP20 price moves every minute
+Description=Retired: US TOP20 price-move headlines (cancelled 2026-11-28, never fires)
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=60s
+# A date in the past never elapses again: the job does not run.
+OnCalendar=2000-01-01 00:00:00 UTC
 Unit=gaemigtp-us-move-news.service
-AccuracySec=5s
+Persistent=false
 
 [Install]
 WantedBy=timers.target
