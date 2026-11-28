@@ -1,1 +1,1 @@
-{"operation":"deploy","path":"backend/kiwoom_us_top20_api.py","target":"backend/kiwoom_us_top20_api.py"}
+{"operation":"deploy","path":"ops/systemd/gaemigtp-kiwoom-us-top20-https.service","target":"ops/systemd/gaemigtp-kiwoom-us-top20-https.service"}
