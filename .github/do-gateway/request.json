@@ -1,1 +1,1 @@
-{"operation":"status"}
+{"operation":"run","path":"ops/do-gateway/probe_tradingviewapi_terms_20261128.py","request_id":"tvapi-terms-20261128","timeout":120}
