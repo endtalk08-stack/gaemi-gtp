@@ -9,7 +9,7 @@ from .ai_test import _authorized
 
 us_news_ai_test_bp = Blueprint("us_news_ai_test", __name__)
 TOP20_URL = "https://quotes.gaemigtp.com/market/trading-value?market=us"
-SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\\Z")
+SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}$")
 
 def _top20():
     req = urllib.request.Request(TOP20_URL, headers={"Origin": "https://gaemigtp-main.pages.dev", "User-Agent": "gaemiGTP-us-news-ai-test/1.0"})
