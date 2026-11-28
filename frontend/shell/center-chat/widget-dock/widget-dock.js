@@ -510,6 +510,35 @@
           <div class="central-widget-card__news-caption-title" data-news-caption-title>${escapeHtml(captionHeadline)}</div>
         </article>`;
       }
+      if (['us-2y', 'us-10y', 'dxy', 'vix', 'wti'].includes(id)) {
+        const meta = catalog()[id];
+        const symbols = { 'us-2y': 'US 2Y', 'us-10y': 'US 10Y', dxy: 'DXY', vix: 'VIX', wti: 'WTI' };
+        return `
+        <article class="central-widget-card central-widget-card--kospi central-widget-card--qqq-muted" data-central-widget-id="${escapeHtml(id)}" data-market-indicator-widget="${escapeHtml(id)}">
+          <button type="button" class="central-widget-card__close central-widget-card__close--overlay" data-central-widget-remove="${escapeHtml(id)}" onclick="window.GaemiGTPWidgetDock.remove('${escapeHtml(id)}')" aria-label="${escapeHtml(meta.title)} 위젯 삭제" title="위젯 삭제">
+            <i data-lucide="x" class="w-3 h-3"></i>
+          </button>
+          <div class="central-widget-card__kospi-title"><span>${symbols[id]}</span><span class="central-widget-card__kospi-market-name" data-market-indicator-source>데이터 연결 중</span></div>
+          <div class="central-widget-card__kospi-body" aria-label="${escapeHtml(meta.title)} 시세 흐름">
+            <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="${id}IndicatorGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="currentColor" stop-opacity="0.28"></stop>
+                  <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
+                </linearGradient>
+              </defs>
+              <polygon data-market-indicator-fill points=""></polygon>
+              <polyline data-market-indicator-line points=""></polyline>
+            </svg>
+            <div class="central-widget-card__kospi-copy">
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market">
+                <strong data-market-indicator-value>—</strong>
+                <span class="central-widget-card__kospi-change" data-market-indicator-change>—</span>
+              </div>
+            </div>
+          </div>
+        </article>`;
+      }
       if (id === 'qqq' || id === 'spy' || id === 'dia' || id === 'gold' || id === 'usdkrw') {
         const isQuoteWidget = id === 'gold' || id === 'usdkrw';
         const isEtf = id !== 'qqq';
@@ -580,6 +609,9 @@
     if (activeIds.includes('qqq')) updateQqqCard();
     if (activeIds.includes('gold') || activeIds.includes('usdkrw')) {
       window.GaemiGTPMarketQuoteWidgets?.mount?.();
+    }
+    if (activeIds.some(id => ['us-2y', 'us-10y', 'dxy', 'vix', 'wti'].includes(id))) {
+      window.GaemiGTPMarketIndicators?.mount?.();
     }
     for (const symbol of Object.keys(marketEtfs)) {
       if (activeIds.includes(symbol.toLowerCase())) updateMarketEtfCard(symbol);
