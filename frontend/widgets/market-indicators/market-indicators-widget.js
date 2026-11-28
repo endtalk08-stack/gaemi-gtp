@@ -5,7 +5,7 @@
   const POLL_MS = 5000;
   const IDS = ['dollar-index', 'wti'];
   const SYMBOLS = { 'dollar-index': 'DXY', wti: 'USOIL' };
-  const LABELS = { 'dollar-index': '달러인덱스', wti: 'WTI 원유' };
+  const LABELS = { 'dollar-index': '달러 인덱스', wti: 'WTI 원유' };
   const state = {
     'dollar-index': { points: [], record: null, historyLoaded: false },
     wti: { points: [], record: null, historyLoaded: false }
