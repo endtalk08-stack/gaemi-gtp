@@ -1,5 +1,6 @@
 {
-  "operation": "logs",
-  "unit": "gaemigtp-us-news-ai.service",
-  "lines": 80
+  "operation": "run",
+  "path": "ops/do-gateway/us_top20_ai_manual_start_20261128.py",
+  "request_id": "ustop20aitest20261128",
+  "timeout": 120
 }
