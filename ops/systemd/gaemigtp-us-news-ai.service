@@ -12,7 +12,7 @@ EnvironmentFile=/var/lib/gaemigtp-news/r2.env
 Environment=PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WorkingDirectory=/opt/gaemigtp-news/app
 ExecStart=/opt/gaemigtp-news/venv/bin/python -m backend.us_news_ai_daily
-# 20 stocks, one every five minutes (about 1 hour 40 minutes).
+# 20 stocks, one every three minutes (about 1 hour).
 TimeoutStartSec=7800
 NoNewPrivileges=true
 PrivateTmp=true

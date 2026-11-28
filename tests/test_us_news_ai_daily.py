@@ -189,7 +189,7 @@ class RunTest(unittest.TestCase):
         top = self.uploads[2][1]
         self.assertEqual([i["symbol"] for i in top["items"]], ["MU", "SNDK"])
         self.assertEqual(top["items"][1]["status"], "no_news")
-        self.assertEqual(self.sleeps, [300])
+        self.assertEqual(self.sleeps, [180])
         state = json.loads(self.state_path.read_text())
         self.assertEqual(state["last_day"], "2026-11-25")
         self.assertIn("MU", state["profiles"])                         # company line reused next time
