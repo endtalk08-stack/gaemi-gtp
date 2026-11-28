@@ -1,7 +1,7 @@
 """Daily Toss-style AI move analysis for the US trading-value TOP20 (DigitalOcean).
 
 Runs once per US trading day at 10:30 New York time (00:30 KST in winter) from
-gaemigtp-us-news-ai.timer, one stock every five minutes in trading-value order so
+gaemigtp-us-news-ai.timer, one stock every three minutes in trading-value order so
 the widget receives a new article at a readable pace for live broadcasts.
 For each TOP20 stock:
 
@@ -46,7 +46,7 @@ RANKING_FILE = Path("/var/lib/gaemigtp-news/kiwoom-us-top20-news.json")
 SYMBOL = re.compile(r"[A-Z][A-Z0-9.-]{0,14}\Z")
 MAX_ARTICLES = 6
 BODY_CHARS = 1200
-PACE_SECONDS = 300           # one article every 5 minutes (also far below Groq limits)
+PACE_SECONDS = 180           # one article every 3 minutes (Groq free tier: 8,000 tokens a minute)
 PROFILES_KEY = "news/ai/us/PROFILES.json"
 MANUAL_INTROS_PATH = Path(__file__).resolve().parent / "data" / "us" / "company_intros.json"
 NO_NEWS_LINE = "뚜렷한 이유가 담긴 뉴스는 확인되지 않았어요."
@@ -533,7 +533,7 @@ def run(now=None, *, top20=read_top20, analyze=analyze_stock, upload=upload_json
         counts[status] = counts.get(status, 0) + 1
         items.append(payload)
         print("[us-news-ai] %s %s tokens=%s" % (stock["symbol"], status, tokens), flush=True)
-        # Publish after every stock so a new article appears every five minutes.
+        # Publish after every stock so a new article appears every three minutes.
         if status == "ok":
             try:
                 publish_list(False)
