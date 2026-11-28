@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
 const { JSDOM } = require('jsdom');
+// Exercises the same catalog, dock, and card lifecycle used by the site.
 
 test('five macro indicators are registered and use the existing movable widget card', async () => {
   const dom = new JSDOM(
