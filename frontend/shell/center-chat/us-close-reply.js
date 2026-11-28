@@ -33,7 +33,6 @@
         .map(tag => String(tag || '').trim().replace(/^#+/, ''))
         .filter(Boolean).slice(0, 3)
     })).filter(item => item.headline && item.summary);
-    if (!cleanIssues.length) return null;
     const responseFormat = (input.response_format || input.responseFormat) === "free_text_v1" ? "free_text_v1" : null;
     return { sessionDate, indices: cleanIndices, issues: cleanIssues, responseFormat };
   }
@@ -46,6 +45,13 @@
     const data = normalize(presentation);
     if (!data) return '';
     const lines = [];
+    if (!data.issues.length) {
+      lines.push('미국장 3대 지수 마감');
+      for (const index of data.indices) {
+        lines.push(index.name + ' ' + priceFormat.format(index.close) + ' (' + percent(index) + ')');
+      }
+      return lines.join('\\n\\n');
+    }
     for (let i = 0; i < data.issues.length; i += 1) {
       const issue = data.issues[i];
       lines.push(issue.headline);
@@ -151,6 +157,20 @@
       const typed = await typeText(element, cleanInlineMarkdown(text));
       return typed !== false && isActive();
     };
+    if (!data.issues.length) {
+      const section = document.createElement('section');
+      section.className = 'gaemi-us-close-issue';
+      const headline = document.createElement('p');
+      headline.className = 'gaemi-us-close-title gtp-chat-copy';
+      section.appendChild(headline);
+      node.appendChild(section);
+      if (!await type(headline, '미국장 3대 지수 마감')) return false;
+      const wrap = document.createElement('div');
+      wrap.className = 'gaemi-us-close-table-wrap';
+      wrap.appendChild(indexTable(data.indices));
+      section.appendChild(wrap);
+      return isActive();
+    }
     for (let index = 0; index < data.issues.length; index += 1) {
       if (!isActive()) return false;
       const issue = data.issues[index];
