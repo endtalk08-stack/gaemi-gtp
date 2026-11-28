@@ -2,7 +2,7 @@
 .gsc { padding: 0 6px; color: var(--gtp-text); font-size: 13px; }
 .gsc-week { margin: 6px 0 14px; }
 .gsc-week__title { margin: 0 0 6px; padding: 0 4px; color: var(--gtp-text); font-size: 13px; font-weight: 700; }
-.gsc-table { border: 1px solid var(--gtp-line, rgba(255,255,255,.08)); border-radius: 10px; overflow: hidden; }
+.gsc-table { border: 1px solid var(--gtp-line, rgba(255,255,255,.08)); border-radius: 0; overflow: hidden; }
 .gsc-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 54px 54px 54px; align-items: center;
   min-height: 34px; padding: 6px 8px; border-top: 1px solid var(--gtp-line, rgba(255,255,255,.06)); column-gap: 6px; }
 .gsc-row:first-child { border-top: 0; }
@@ -33,6 +33,15 @@
   .gsc-row--head { display: none; }
 }
 
-/* 주요일정 as a dock widget: full width like the news widget. */
-.central-widget-card--schedule { grid-column: 1 / -1; min-width: 0; padding: 10px 8px; }
-.central-widget-card__schedule-title { margin: 0 0 6px; padding: 0 6px; color: var(--gtp-text); font-size: 13px; font-weight: 700; }
+/* 주요일정 as a dock widget: full width, square, title bar like the news widget's top bar. */
+.central-widget-card--schedule { grid-column: 1 / -1; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.gsc-head { display: flex; align-items: center; gap: 6px; height: 46px; box-sizing: border-box; padding: 0 10px 0 14px;
+  background: var(--gtp-surface); margin-bottom: 8px; border-radius: 0; }
+.gsc-head__title { flex: 1; min-width: 0; color: var(--gtp-text); font-size: 15px; font-weight: 700; }
+.gsc-head__button { flex: 0 0 26px; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  padding: 4px; border: 0; border-radius: 0; background: transparent; color: var(--gtp-muted); cursor: pointer; }
+.gsc-head__button:hover, .gsc-head__button:focus-visible { color: var(--gtp-text); background: var(--gtp-hover); outline: none; }
+.gsc-head__button svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .16s ease; }
+.gsc-head__button[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.central-widget-card--schedule [data-schedule-root][hidden] { display: none; }
+.central-widget-card--schedule .gsc { padding: 0; }

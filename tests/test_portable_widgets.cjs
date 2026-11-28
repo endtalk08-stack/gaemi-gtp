@@ -249,7 +249,7 @@ test('left sidebar keeps all market tabs and restores moved widgets after refres
   assert.equal(marketSidebar.includes('시장 시세'), false);
   assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
   assert.match(html, /market-sidebar\.js\?v=20261128-kis-night-futures-v1/);
-  assert.match(html, /widget-dock\.js\?v=20261128-schedule-widget-v1/);
+  assert.match(html, /widget-dock\.js\?v=20261128-schedule-square-v2/);
   secondDom.window.close();
 });
 
@@ -347,5 +347,13 @@ test('주요일정 widget renders the same weekly table as the sidebar', () => {
   assert.ok(card.querySelector('.gsc-num--actual').classList.contains('gsc-num--up'));
   assert.equal(card.querySelector('.gsc-pending').textContent, '오전 12시 발표 예정');
   assert.equal(card.querySelector('.gsc-date').textContent, '26일 (목)');
+  const toggle = card.querySelector('[data-schedule-toggle]');
+  toggle.click();
+  assert.equal(w.document.getElementById('scheduleWidgetBody').hidden, true);
+  assert.equal(toggle.getAttribute('aria-label'), '주요일정 펼치기');
+  toggle.click();
+  assert.equal(w.document.getElementById('scheduleWidgetBody').hidden, false);
+  card.querySelector('[data-schedule-close]').click();
+  assert.equal(dock.isActive('schedule'), false);
   dom.window.close();
 });

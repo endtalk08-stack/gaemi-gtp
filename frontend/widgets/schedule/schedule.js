@@ -86,6 +86,18 @@
     }).join('') + '</div>';
   }
   function setItems(list) { items = Array.isArray(list) ? list : []; render(); }
+  // Widget title bar: collapse / expand the table.
+  document.addEventListener('click', event => {
+    if (event.target.closest?.('[data-schedule-close]')) { window.GaemiGTPWidgetDock?.remove?.('schedule'); return; }
+    const button = event.target.closest?.('[data-schedule-toggle]');
+    if (!button) return;
+    const open = button.getAttribute('aria-expanded') !== 'false';
+    button.setAttribute('aria-expanded', String(!open));
+    button.setAttribute('aria-label', '주요일정 ' + (open ? '펼치기' : '접기'));
+    button.title = button.getAttribute('aria-label');
+    const target = document.getElementById(button.getAttribute('aria-controls'));
+    if (target) target.hidden = open;
+  });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render); else render();
   window.GaemiGTPSchedule = { setItems, render };
 }());
