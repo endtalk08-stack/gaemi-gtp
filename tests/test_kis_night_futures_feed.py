@@ -1,4 +1,8 @@
+import base64
 import unittest
+
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from backend.kis_night_futures_feed import (
     DEFAULT_SYMBOL,
@@ -33,6 +37,24 @@ class KISNightFuturesFrameTests(unittest.TestCase):
         self.assertEqual(quote["last_volume"], 3)
         self.assertEqual(quote["accumulated_volume"], 128)
         self.assertEqual(quote["symbol"], DEFAULT_SYMBOL)
+
+    def test_encrypted_trade_frame_uses_the_kis_subscription_key_and_iv(self):
+        values = [""] * len(TRADE_FIELDS)
+        values[TRADE_FIELDS.index("futs_shrn_iscd")] = DEFAULT_SYMBOL
+        values[TRADE_FIELDS.index("bsop_hour")] = "213047"
+        values[TRADE_FIELDS.index("futs_prpr")] = "353.10"
+        values[TRADE_FIELDS.index("futs_prdy_ctrt")] = "0.51"
+        plain = "^".join(values).encode("utf-8")
+        padder = padding.PKCS7(algorithms.AES.block_size).padder()
+        padded = padder.update(plain) + padder.finalize()
+        key, iv = "0123456789abcdef", "abcdef0123456789"
+        encryptor = Cipher(algorithms.AES(key.encode()), modes.CBC(iv.encode())).encryptor()
+        encrypted = base64.b64encode(encryptor.update(padded) + encryptor.finalize()).decode()
+        frame = "1|{}|{}|{}".format(TRADES_TR_ID, DEFAULT_SYMBOL, encrypted)
+        quote = decode_realtime_frame(frame, encryption={"key": key, "iv": iv})
+        self.assertEqual(quote["price"], 353.10)
+        self.assertEqual(quote["change_pct"], 0.51)
+        self.assertIsNone(decode_realtime_frame(frame))
 
     def test_order_book_frame_extracts_best_bid_ask_and_sizes(self):
         frame = make_frame(QUOTE_TR_ID, QUOTE_FIELDS, {
