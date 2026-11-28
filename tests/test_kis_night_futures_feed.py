@@ -1,4 +1,5 @@
 import base64
+import json
 import unittest
 
 from cryptography.hazmat.primitives import padding
@@ -11,6 +12,7 @@ from backend.kis_night_futures_feed import (
     QUOTE_TR_ID,
     TRADES_TR_ID,
     decode_realtime_frame,
+    subscription_message,
 )
 
 
@@ -70,6 +72,22 @@ class KISNightFuturesFrameTests(unittest.TestCase):
         self.assertEqual(quote["best_bid"], 352.75)
         self.assertEqual(quote["ask_quantity"], 12)
         self.assertEqual(quote["bid_quantity"], 9)
+
+
+    def test_subscriptions_use_read_only_trade_and_order_book_channels(self):
+        for tr_id in (TRADES_TR_ID, QUOTE_TR_ID):
+            with self.subTest(tr_id=tr_id):
+                message = json.loads(subscription_message("approval-token", tr_id, DEFAULT_SYMBOL))
+                self.assertEqual(message["header"]["approval_key"], "approval-token")
+                self.assertEqual(message["header"]["custtype"], "P")
+                self.assertEqual(message["header"]["tr_type"], "1")
+                self.assertEqual(message["body"]["input"]["tr_id"], tr_id)
+                self.assertEqual(message["body"]["input"]["tr_key"], DEFAULT_SYMBOL)
+                self.assertNotIn("order", message["body"]["input"])
+
+    def test_subscription_supports_explicit_symbol_override(self):
+        message = json.loads(subscription_message("approval-token", TRADES_TR_ID, "101W9001"))
+        self.assertEqual(message["body"]["input"]["tr_key"], "101W9001")
 
     def test_rejects_unexpected_symbol_and_invalid_trade_price(self):
         wrong_symbol = "0|{}|999W0000|{}".format(
