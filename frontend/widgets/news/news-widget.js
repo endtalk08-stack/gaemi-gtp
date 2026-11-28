@@ -109,7 +109,8 @@
   let aiTestSelectedSymbol = '';
   let aiTestResult = null;
   let aiTestStatus = '관리자 인증 후 현재 거래대금 TOP20을 불러오세요.';
-  const aiTestBackend = window.location.hostname === 'gaemigtp-main.pages.dev' || window.location.hostname.endsWith('github.io') ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
+  const aiTestHost = window.location.hostname;
+  const aiTestBackend = aiTestHost === 'gaemigtp-main.pages.dev' || aiTestHost.endsWith('.gaemigtp-main.pages.dev') || aiTestHost.endsWith('github.io') ? 'https://gaemi-gtp.onrender.com' : window.location.origin;
   function aiTestPanel() {
     const options = aiTestStocks.map(row => '<option value="' + escape(row.symbol) + '"' + (row.symbol === aiTestSelectedSymbol ? ' selected' : '') + '>' + escape(row.rank + '위 · ' + row.name + ' (' + row.symbol + ')') + '</option>').join('');
     let preview = '';
