@@ -419,9 +419,9 @@
       const missingCredentials = quote?.status === 'credentials_missing';
       statusNode.textContent = missingCredentials ? 'API 키 미설정'
         : !quote ? '연결 대기'
-          : quote.connected === false ? '연결 끊김' : fresh ? '실시간' : '수신 지연';
+          : quote.connected === false ? '연결 끊김' : fresh ? '실시간' : valid ? '수신 지연' : '시세 대기';
       statusNode.dataset.state = missingCredentials ? 'credentials-missing'
-        : !quote ? 'waiting'
+        : !quote || (quote.connected !== false && !valid) ? 'waiting'
           : quote.connected === false ? 'disconnected' : fresh ? 'live' : 'stale';
     }
     drawQqqChart(card, nightFutures.points);
