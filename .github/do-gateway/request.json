@@ -1,3 +1,1 @@
-{
-  "operation": "status"
-}
+{"operation":"run","path":"ops/do-gateway/check_server_load_20261128.py","request_id":"server-load-20261128","timeout":60}
