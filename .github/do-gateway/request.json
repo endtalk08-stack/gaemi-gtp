@@ -1,1 +1,3 @@
-{"operation":"logs","unit":"gaemigtp-us-move-news.service","lines":4}
+{
+  "operation": "status"
+}
