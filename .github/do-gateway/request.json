@@ -1,3 +1,1 @@
-{
-  "operation": "status"
-}
+{"operation":"run","path":"ops/do-gateway/probe_financialjuice_rss_20261128.py","request_id":"fj-rss-probe-20261128","timeout":60}
