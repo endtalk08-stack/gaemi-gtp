@@ -8,6 +8,7 @@ for line in pathlib.Path("/var/lib/gaemigtp-news/r2.env").read_text().splitlines
         os.environ[m.group(1)] = m.group(2).strip().strip("'\"")
 for line in pathlib.Path("/etc/gaemigtp/news-worker.env").read_text().splitlines() if os.access("/etc/gaemigtp/news-worker.env", os.R_OK) else []:
     pass
+import backend.us_news_ai_daily as job
 from backend.services.news_feed import fetch_stock_news
 from backend.services.news_detail import read_selected_article_details
 stocks = job.read_top20()[:5]
