@@ -18,7 +18,7 @@ test('Dollar Index and WTI use the BiQuote live quote feed and existing movable 
       ok: true,
       json: async () => ({
         DXY: { mid: 100.2, dayDiffPercent: 0.3, timestamp: new Date().toISOString(), marketState: 'closed', stale: true, quoteAgeSeconds: 600 },
-        USOIL: { mid: 62.5, dayDiffPercent: -0.4, timestamp: new Date().toISOString(), marketState: 'open', stale: false, quoteAgeSeconds: 0 }
+        USOIL: { mid: 62.5, dayDiffPercent: -0.4, timestamp: new Date().toISOString(), marketState: 'closed', stale: true, quoteAgeSeconds: 600 }
       })
     };
     if (String(url).includes('/ohlc?')) return { ok: true, json: async () => ({ bars: [] }) };
