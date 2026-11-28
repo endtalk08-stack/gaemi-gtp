@@ -249,6 +249,32 @@ test('left sidebar keeps all market tabs and restores moved widgets after refres
   assert.equal(marketSidebar.includes('시장 시세'), false);
   assert.match(marketSidebar, /const showListHeading = tab === 'value'/);
   assert.match(html, /market-sidebar\.js\?v=20261128-sidebar-news-title-v1/);
-  assert.match(html, /widget-dock\.js\?v=20261125-widget-state-persist-v2/);
+  assert.match(html, /widget-dock\.js\?v=20261128-night-futures-v1/);
   secondDom.window.close();
+});
+
+test('KOSPI 200 night futures uses the existing quote-card layout and accepts live quote events', () => {
+  const dom = new JSDOM('<main id="mainContent"><section id="centralWidgetDock"><div id="centralWidgetDockBody"></div></section></main>', { url: 'https://example.test', runScripts: 'outside-only' });
+  const w = dom.window;
+  w.setInterval = () => 0;
+  w.fetch = async () => ({ ok: false });
+  w.eval(readFileSync('frontend/widgets/catalog/catalog.js', 'utf8'));
+  w.eval(readFileSync('frontend/shell/center-chat/widget-dock/widget-dock.js', 'utf8'));
+  const dock = w.GaemiGTPWidgetDock;
+  dock.initialize();
+  assert.equal(dock.add('night-futures'), true);
+  const card = w.document.querySelector('[data-central-widget-id="night-futures"]');
+  assert.ok(card);
+  assert.ok(card.classList.contains('central-widget-card--kospi'));
+  assert.equal(card.querySelector('[data-night-futures-price]').textContent, '—');
+  assert.equal(card.querySelector('[data-night-futures-status]').textContent, '연결 대기');
+  w.dispatchEvent(new w.CustomEvent('gaemi:night-futures-quote', {
+    detail: { price: 352.75, change_pct: 0.42, received_at_ms: Date.now(), connected: true }
+  }));
+  assert.equal(card.querySelector('[data-night-futures-price]').textContent, '352.75');
+  assert.equal(card.querySelector('[data-night-futures-change]').textContent, '+0.42%');
+  assert.equal(card.querySelector('[data-night-futures-status]').textContent, '실시간');
+  w.dispatchEvent(new w.CustomEvent('gaemi:night-futures-quote', { detail: { connected: false } }));
+  assert.equal(card.querySelector('[data-night-futures-status]').textContent, '연결 끊김');
+  dom.window.close();
 });
