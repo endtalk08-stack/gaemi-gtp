@@ -643,7 +643,7 @@
           <div class="central-widget-card__kospi-title"><span>${escapeHtml(title)}</span><span class="central-widget-card__kospi-market-name">야간선물</span><span class="central-widget-card__night-status" data-night-futures-status data-state="waiting">연결 대기</span></div>
           <div class="central-widget-card__kospi-body" aria-label="코스피200 야간선물 실시간 시세 흐름">
             <svg class="central-widget-card__sparkline" viewBox="0 0 72 28" preserveAspectRatio="none" aria-hidden="true">
-              <defs><linearGradient id="nightFuturesSparklineGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="currentColor" stop-opacity="0.28"></stop><stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop></linearGradient></defs>
+              <defs><linearGradient id="kospiSparklineGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="currentColor" stop-opacity="0.28"></stop><stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop></linearGradient></defs>
               <polygon data-kospi-sparkline-fill data-night-futures-fill points=""></polygon>
               <polyline data-kospi-sparkline data-night-futures-line points=""></polyline>
             </svg>
