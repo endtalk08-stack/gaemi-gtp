@@ -7,6 +7,7 @@ from flask_cors import CORS
 from backend.services.ai_test import ai_test_bp, remember_chat_analysis
 from backend.services.worker_ai_lab import worker_ai_lab_bp
 from backend.services.issue_title_test import issue_title_test_bp
+from backend.services.us_news_ai_test import us_news_ai_test_bp
 from backend.services.private_access import install_private_access
 from backend.services.market_rankings import get_market_selection, analysis_ticker_for_selection
 from backend.services.market_issue_headlines import get_market_issue_headlines
@@ -23,6 +24,7 @@ app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 app.register_blueprint(ai_test_bp)
 app.register_blueprint(worker_ai_lab_bp)
 app.register_blueprint(issue_title_test_bp)
+app.register_blueprint(us_news_ai_test_bp)
 CORS(app)
 install_private_access(app, FRONTEND_DIR)
 application = app
