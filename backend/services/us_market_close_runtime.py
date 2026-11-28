@@ -174,8 +174,12 @@ def verified_originals(session_date, now_utc=None, search=None, reader=None):
     return chosen if len(chosen) == 2 else []
 
 
-def verified_indices(session_date, opener=None):
-    """Require three actual NASDAQ/Dow/S&P NAVER closes for exactly one NY day."""
+def verified_indices(session_date=None, opener=None):
+    """Return three actual NAVER closes from one completed New York session.
+
+    When session_date is omitted, infer the latest common completed session
+    from the provider's own timestamps. No calendar guess or stale fallback.
+    """
     url = ("https://stock.naver.com/api/polling/worldstock/index?"
            + urllib.parse.urlencode({"reutersCodes": ",".join(INDEX_CODES)}))
     req = urllib.request.Request(url, headers={
@@ -186,6 +190,24 @@ def verified_indices(session_date, opener=None):
         payload = json.loads(resp.read(210000))
     if not isinstance(payload, dict) or not isinstance(payload.get("datas"), list):
         raise ValueError("us_indices_bad_shape")
+    if session_date is None:
+        observed_dates = {}
+        for entry in payload["datas"]:
+            if not isinstance(entry, dict):
+                continue
+            code = str(entry.get("reutersCode") or "")
+            if code not in INDEX_CODES or code in observed_dates:
+                continue
+            if str(entry.get("marketStatus") or "").upper() != "CLOSE":
+                continue
+            traded_at = dt.datetime.fromisoformat(
+                str(entry.get("localTradedAt") or "").replace("Z", "+00:00")
+            )
+            if traded_at.tzinfo:
+                observed_dates[code] = traded_at.astimezone(NY).date()
+        if set(observed_dates) != set(INDEX_CODES) or len(set(observed_dates.values())) != 1:
+            raise ValueError("us_indices_latest_session_unavailable")
+        session_date = next(iter(observed_dates.values()))
     rows = {}
     for entry in payload["datas"]:
         if not isinstance(entry, dict):
