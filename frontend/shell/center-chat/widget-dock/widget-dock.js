@@ -494,6 +494,7 @@
         </article>`;
       }
       if (id === 'qqq' || id === 'spy' || id === 'dia' || id === 'gold' || id === 'usdkrw') {
+        const isQuoteWidget = id === 'gold' || id === 'usdkrw';
         const isEtf = id !== 'qqq';
         const symbol = id === 'gold' ? '금' : id === 'usdkrw' ? '달러/원' : id.toUpperCase();
         const marketName = id === 'gold' ? '금 현물 · 원/g' : id === 'usdkrw' ? 'USD/KRW' : id === 'spy' ? 'S&P 500' : id === 'dia' ? '다우' : '나스닥';
@@ -511,11 +512,11 @@
                   <stop offset="100%" stop-color="currentColor" stop-opacity="0"></stop>
                 </linearGradient>
               </defs>
-              <polygon data-kospi-sparkline-fill data-market-quote-fill points=""></polygon>
-              <polyline data-kospi-sparkline data-market-quote-line points=""></polyline>
+              <polygon data-kospi-sparkline-fill ${isQuoteWidget ? 'data-market-quote-fill' : ''} points=""></polygon>
+              <polyline data-kospi-sparkline ${isQuoteWidget ? 'data-market-quote-line' : ''} points=""></polyline>
             </svg>
             <div class="central-widget-card__kospi-copy">
-              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price data-market-quote-value>—</strong><span class="central-widget-card__kospi-change" data-kospi-change data-market-quote-percent>—</span></div>
+              <div class="central-widget-card__kospi-row central-widget-card__kospi-market"><strong data-kospi-price ${isQuoteWidget ? 'data-market-quote-value' : ''}>—</strong><span class="central-widget-card__kospi-change" data-kospi-change ${isQuoteWidget ? 'data-market-quote-percent' : ''}>—</span></div>
             </div>
           </div>
           ${isEtf ? '' : '<a class="central-widget-card__kospi-reason" data-qqq-reason target="_blank" rel="noopener noreferrer" hidden></a>'}
