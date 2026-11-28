@@ -409,20 +409,24 @@
     const change = Number.isFinite(quote?.change_pct) ? quote.change_pct : null;
     if (changeNode) {
       changeNode.textContent = change === null ? '—' : (change > 0 ? '+' : '') + change.toFixed(2) + '%';
-      changeNode.classList.toggle('central-widget-card__kospi-change--up', fresh && change > 0);
-      changeNode.classList.toggle('central-widget-card__kospi-change--down', fresh && change < 0);
+      // The last price keeps its colour after the close, like any closing quote.
+      changeNode.classList.toggle('central-widget-card__kospi-change--up', valid && change > 0);
+      changeNode.classList.toggle('central-widget-card__kospi-change--down', valid && change < 0);
     }
     card.classList.toggle('central-widget-card--qqq-muted', !fresh);
     chart?.classList.toggle('central-widget-card__sparkline--up', fresh && change > 0);
     chart?.classList.toggle('central-widget-card__sparkline--down', fresh && change < 0);
     if (statusNode) {
       const missingCredentials = quote?.status === 'credentials_missing';
+      const closed = valid && quote.status === 'closed';
       statusNode.textContent = missingCredentials ? 'API 키 미설정'
         : !quote ? '연결 대기'
-          : quote.connected === false ? '연결 끊김' : fresh ? '실시간' : valid ? '수신 지연' : '시세 대기';
+          : closed ? '마감'
+            : quote.connected === false ? '연결 끊김' : fresh ? '실시간' : valid ? '수신 지연' : '시세 대기';
       statusNode.dataset.state = missingCredentials ? 'credentials-missing'
         : !quote || (quote.connected !== false && !valid) ? 'waiting'
-          : quote.connected === false ? 'disconnected' : fresh ? 'live' : 'stale';
+          : closed ? 'closed'
+            : quote.connected === false ? 'disconnected' : fresh ? 'live' : 'stale';
     }
     drawQqqChart(card, nightFutures.points);
   }
