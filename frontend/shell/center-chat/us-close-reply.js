@@ -50,7 +50,7 @@
       for (const index of data.indices) {
         lines.push(index.name + ' ' + priceFormat.format(index.close) + ' (' + percent(index) + ')');
       }
-      return lines.join('\\n\\n');
+      return lines.join('\n\n');
     }
     for (let i = 0; i < data.issues.length; i += 1) {
       const issue = data.issues[i];
