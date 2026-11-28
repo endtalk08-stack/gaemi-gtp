@@ -1,3 +1,1 @@
-{
-  "operation": "status"
-}
+{"operation":"run","path":"ops/do-gateway/dry_ai_articles_part1_20261128.py","request_id":"dry-ai-part1-20261128","timeout":900}
